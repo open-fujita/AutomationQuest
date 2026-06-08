@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "description": "BizRobo! Design Studio 学習ゲーム（自動化推進室への相談解決クエスト）",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

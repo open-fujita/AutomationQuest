@@ -12,14 +12,28 @@ BizRobo! **Design Studio (DS)** の使い方を、ゲームを進めるうちに
 - Zustand — ロボットモデル / ゲーム進捗（進捗は localStorage 永続化）
 - バックエンド無し（純クライアント）
 
+## 必要環境
+- **Node.js 18 以上（推奨: 20 または 22 LTS）** と npm。
+  - Vite 6 が Node 18+ を必須とします。Node が古いと `npm run dev` で
+    `SyntaxError: Unexpected reserved word`（vite.js のトップレベル await）や
+    `ExperimentalWarning: The ESM module loader is experimental` が出ます。
+  - 確認: `node -v` → 18 未満なら https://nodejs.org の LTS をインストールしてください
+    （複数バージョンを切替える場合は nvm-windows が便利）。
+
 ## セットアップ
 ```bash
+node -v             # まず 18 以上であることを確認
 npm install
 npm run dev        # 開発サーバ（http://localhost:5173）
 npm run build      # 本番ビルド（tsc -b && vite build）
-npm run typecheck  # 型チェック（tsc --noEmit）
+npm run typecheck  # 型チェック（tsc -b）
 npm test           # エンジン検証テスト（vitest）
 ```
+
+### Node を上げられない環境で動かす場合
+このアプリは純クライアント（静的）です。**Node 18+ のマシンで `npm run build`** すると
+`dist/` に静的ファイルが出力されるので、その `dist/` を任意の Web サーバー
+（例: `npx serve dist`、IIS、Nginx 等）で配信すれば、実行側に Node は不要です。
 
 ## 収録ミッション（縦切り初版）
 - **相談 #1 はじめての自動化** — 新規ロボット → ページを読み込む → 単一抽出 → 実行 → 効果測定
