@@ -101,6 +101,19 @@ function addStepToForEachBody(
   })
 }
 
+// ---- 挿入先ターゲット型定義 -----------------------------------
+
+/**
+ * ステップを挿入する場所を表す型。
+ *   main       — トップレベル末尾
+ *   forEachBody — 指定 ForEach ステップの body 末尾
+ *   guard      — 指定 GuardedChoice ステップの指定ガードインデックスの steps 末尾
+ */
+export type InsertTarget =
+  | { kind: 'main' }
+  | { kind: 'forEachBody'; stepId: string }
+  | { kind: 'guard'; stepId: string; guardIndex: number }
+
 // ---- ストアの型定義 -------------------------------------------
 
 interface DasRobotState {
@@ -110,10 +123,18 @@ interface DasRobotState {
   selectedPath: string[]
   sim: DasSimResult
 
+  /**
+   * 次のステップを挿入する場所。
+   * デフォルトは { kind: 'main' }（トップレベル末尾）。
+   * body プレースホルダをクリックすると { kind: 'forEachBody', stepId } に変わる。
+   * ミッション切り替え・ホーム切替でリセットされる。
+   */
+  insertTarget: InsertTarget
+
   /** ミッション切り替え時にロボットを初期化（dasSeed 適用） */
   loadMission: (mission: Mission) => void
 
-  /** トップレベルにステップを追加。生成 ID を返す */
+  /** insertTarget に従ってステップを追加。生成 ID を返す */
   addStep: (action: DasAction) => string
 
   /** 選択ステップの更新（action 部分更新） */
@@ -137,6 +158,12 @@ interface DasRobotState {
   /** ステップ選択 */
   selectStep: (id: string | null) => void
 
+  /**
+   * 挿入先ターゲットを変更する。
+   * ForEach body プレースホルダのクリックハンドラから呼ぶ。
+   */
+  setInsertTarget: (target: InsertTarget) => void
+
   /** 実行結果をセット */
   setSim: (sim: DasSimResult) => void
   resetSim: () => void
@@ -149,13 +176,15 @@ export const useDasRobotStore = create<DasRobotState>((set, get) => ({
   selectedStepId: null,
   selectedPath: [],
   sim: EMPTY_DAS_SIM,
+  insertTarget: { kind: 'main' } as InsertTarget,
 
   loadMission: (mission) => {
     const robot = createEmptyDasRobot(mission.id)
     if (mission.robotType === 'das' && mission.dasSeed) {
       mission.dasSeed(robot)
     }
-    set({ robot, selectedStepId: null, selectedPath: [], sim: EMPTY_DAS_SIM })
+    // ミッション切り替え時は insertTarget をリセット
+    set({ robot, selectedStepId: null, selectedPath: [], sim: EMPTY_DAS_SIM, insertTarget: { kind: 'main' } })
   },
 
   addStep: (action) => {
@@ -163,8 +192,44 @@ export const useDasRobotStore = create<DasRobotState>((set, get) => ({
     // アクション種別に応じたデフォルト名を設定
     const name = getDefaultStepName(action)
     const step: DasStep = { id, name, action, enabled: true }
+
+    // insertTarget に従って挿入先を決定する
+    const target = get().insertTarget
+
+    if (target.kind === 'forEachBody') {
+      // ForEach の body に追加
+      set((s) => ({
+        robot: {
+          ...s.robot,
+          steps: addStepToForEachBody(s.robot.steps, target.stepId, step),
+        },
+        selectedStepId: id,
+      }))
+      return id
+    }
+
+    if (target.kind === 'guard') {
+      // GuardedChoice のガード steps に追加
+      set((s) => ({
+        robot: {
+          ...s.robot,
+          steps: updateGuardInStep(s.robot.steps, target.stepId, target.guardIndex, (guard) => ({
+            ...guard,
+            steps: [...guard.steps, step],
+          })),
+        },
+        selectedStepId: id,
+      }))
+      return id
+    }
+
+    // デフォルト: トップレベル末尾に追加
     set((s) => ({ robot: { ...s.robot, steps: [...s.robot.steps, step] }, selectedStepId: id }))
     return id
+  },
+
+  setInsertTarget: (target) => {
+    set({ insertTarget: target })
   },
 
   updateStep: (id, patch) => {

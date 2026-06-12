@@ -7,6 +7,12 @@
 //   ガードチョイス: カード内にガードレーン縦並び（GuardLane）
 //   ForEach / Loop: カード展開時に body の横フロー（再帰）
 //
+// フローライン固定Y方式（実機準拠）:
+//   水平フロー線・フローポイントは全ステップ共通の固定 Y を通る。
+//   FLOW_Y_OFFSET = カードヘッダ中心までの距離（px）。
+//   カードは line が貫通するヘッダを持ち、展開フォームは下へ伸びる。
+//   各フロー要素に mt-[FLOW_Y_OFFSETpx] を付与して線を固定 Y に揃える。
+//
 // overflow-x: auto でキャンバスをスクロール可能にする。
 // アクセシビリティ: role="region"、aria-label="ワークフロー キャンバス"
 // ============================================================
@@ -17,6 +23,12 @@ import { useDasRobotStore } from '../../store/dasRobotStore'
 import type { DasSimResult } from '../../engine/dasSimulator'
 import { FlowPoint, FlowLine } from './FlowPoint'
 import { StepCard } from './StepCard'
+
+// カードヘッダの中心 Y（上端からの px）。
+// StepCard のヘッダ高は py-1.5（6px top/bottom） + text-[12px]（約14px） ≒ 26px → 中心 = 13px。
+// 線・○ の中心をここに合わせる（mt でオフセット）。
+// ○ の半径 = 6px（h-3=12px/2）なので mt = FLOW_Y - 6 = 7px。
+const FLOW_Y_OFFSET = 7 // px: ○/線 の上端オフセット（mt として付与）
 
 // ---- 横フロー描画（再帰） ------------------------------------
 
@@ -52,31 +64,33 @@ function HorizontalFlow({
     [sim, selectedStepId, onSelect],
   )
 
+  // 接続線・フローポイントのスタイル: 固定 Y に揃えるため self-start + mt で上端を指定
+  const lineStyle = `flex items-center self-start shrink-0`
+  const lineMt = `mt-[${FLOW_Y_OFFSET}px]`
+
   return (
     <div className="flex items-start" role="list" aria-label={isNested ? undefined : 'ステップ一覧'}>
       {/* 最初の FlowPoint */}
-      <div className="flex items-center self-stretch mt-3">
+      <div className={`${lineStyle} ${lineMt}`}>
         <FlowPoint label={isNested ? undefined : 'フロー開始'} />
         <FlowLine width={8} />
       </div>
 
       {steps.map((step, i) => (
         <React.Fragment key={step.id}>
-          <div role="listitem" className="flex items-start">
-            {/* ステップカード（展開時は縦に広がる） */}
-            <div className="mt-[5px]">
-              <StepCard
-                step={step}
-                sim={sim}
-                selectedStepId={selectedStepId}
-                onSelect={onSelect}
-                onRemove={onRemove}
-                renderSteps={renderSteps}
-              />
-            </div>
+          <div role="listitem" className="flex items-start shrink-0">
+            {/* ステップカード: 先頭揃え（items-start）で展開しても線 Y は動かない */}
+            <StepCard
+              step={step}
+              sim={sim}
+              selectedStepId={selectedStepId}
+              onSelect={onSelect}
+              onRemove={onRemove}
+              renderSteps={renderSteps}
+            />
           </div>
           {/* カード後の接続線 + フローポイント */}
-          <div className="flex items-center self-stretch mt-3">
+          <div className={`${lineStyle} ${lineMt}`}>
             <FlowLine width={8} />
             {i < steps.length - 1 && (
               <>
@@ -90,13 +104,13 @@ function HorizontalFlow({
 
       {/* 最後のフローポイント（ステップが 0 件のときは最初の後につける） */}
       {steps.length === 0 && (
-        <div className="flex items-center self-stretch mt-3">
+        <div className={`${lineStyle} ${lineMt}`}>
           <FlowLine width={16} />
           <FlowPoint label="フロー終了" />
         </div>
       )}
       {steps.length > 0 && (
-        <div className="flex items-center self-stretch mt-3">
+        <div className={`${lineStyle} ${lineMt}`}>
           <FlowPoint label={isNested ? undefined : 'フロー終了'} />
         </div>
       )}

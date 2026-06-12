@@ -239,8 +239,10 @@ export const GuardLane = React.memo(function GuardLane({
 
       {/* ──────────────────────────────────────────────────
           青線 → ○ → 枝ステップカード列（横フロー）
+          フローライン固定 Y 方式: FLOW_Y_OFFSET = 7px で揃える
           ────────────────────────────────────────────────── */}
-      <div className="flex items-start shrink-0">
+      {/* レーン内固定 Y オフセット（カードヘッダ中心に線を通す） */}
+      <div className="flex items-center self-start shrink-0 mt-[7px]">
         <FlowLine width={16} />
         <FlowPoint label={`ガード ${guardIndex + 1} 枝の開始`} />
         <FlowLine width={8} />
@@ -248,13 +250,13 @@ export const GuardLane = React.memo(function GuardLane({
       <div className="flex items-start gap-0">
         {renderBranchSteps(guard.steps)}
         {guard.steps.length === 0 && (
-          <div className="flex items-center text-[10px] text-das-textDim/60 italic px-2 py-1 shrink-0 self-center">
+          <div className="flex items-center text-[10px] text-das-textDim/60 italic px-2 py-1 shrink-0 self-start mt-[7px]">
             （ステップなし）
           </div>
         )}
       </div>
       {/* 右端合流線 */}
-      <div className="flex items-start shrink-0">
+      <div className="flex items-center self-start shrink-0 mt-[7px]">
         <FlowLine width={8} />
         <FlowPoint label={`ガード ${guardIndex + 1} 枝の終了`} />
       </div>

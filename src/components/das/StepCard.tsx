@@ -25,6 +25,11 @@ import { dasStepIssue } from '../../engine/dasStepStatus'
 import type { DasSimResult } from '../../engine/dasSimulator'
 import { FlowPoint, FlowLine, LoopFlowMarker } from './FlowPoint'
 import { GuardLane, AddGuardButton } from './GuardLane'
+import { useDasRobotStore } from '../../store/dasRobotStore'
+import type { InsertTarget } from '../../store/dasRobotStore'
+
+// カードヘッダ中心 Y（DasWorkflowView と同じ値）: ○/線の上端オフセット(px)
+const FLOW_Y_OFFSET = 7
 import {
   BrowserForm,
   WindowsForm,
@@ -102,6 +107,25 @@ export const StepCard = React.memo(function StepCard({
   const isCurrent = isCurrentStep(step.id, sim)
   const status = getStepStatus(step.id, sim)
   const issue = dasStepIssue(step)
+
+  // 挿入先ターゲット（ForEach body への挿入先切り替えに使う）
+  const insertTarget = useDasRobotStore((s) => s.insertTarget)
+  const setInsertTarget = useDasRobotStore((s) => s.setInsertTarget)
+
+  // この ForEach のbody が挿入先として選択されているか
+  const isBodyInsertTarget =
+    insertTarget.kind === 'forEachBody' && insertTarget.stepId === step.id
+
+  // body プレースホルダ / body レーンのクリック: 挿入先を body に切り替える
+  const handleBodyClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      const target: InsertTarget = { kind: 'forEachBody', stepId: step.id }
+      setInsertTarget(target)
+      onSelect(step.id)
+    },
+    [setInsertTarget, step.id, onSelect],
+  )
 
   // 実行後の成立ガード
   const winnerGuardType = sim.guardResults.find((gr) => gr.stepId === step.id)?.winnerGuardType
@@ -359,24 +383,73 @@ export const StepCard = React.memo(function StepCard({
        *   カード右端 → 黄色○フローポイント（LoopFlowMarker）→ body ステップ列
        *   本体ステップはカード外の同レーン上で横並び。
        *   折りたたみ時も黄色フローポイントは常時表示（実機と同様）。
+       *
+       * フローライン固定 Y 方式（問題1修正）:
+       *   LoopFlowMarker の黄色○・接続線も FLOW_Y_OFFSET で固定 Y に揃える。
+       *   body の HorizontalFlow も同じ FLOW_Y_OFFSET を使うため、
+       *   LoopFlowMarker と body ステップのフロー線が一直線に繋がる。
        */}
       {isLoopStep && (
-        <div className="flex items-start self-stretch ml-0">
-          {/* 黄色フローポイント + 縦線 + 三角マーカー */}
-          <div className="flex items-center self-stretch mt-3">
+        <div className="flex items-start ml-0">
+          {/* 黄色フローポイント + 縦線 + 三角マーカー: 固定 Y に合わせる */}
+          <div
+            className="flex items-center self-start shrink-0"
+            style={{ marginTop: `${FLOW_Y_OFFSET}px` }}
+          >
             <FlowLine width={4} loop />
             <LoopFlowMarker />
             <FlowLine width={4} loop />
           </div>
-          {/* body ステップ列（再帰描画） */}
-          <div className="flex items-start mt-[5px]">
+          {/* body ステップ列（再帰描画）: HorizontalFlow が内部で FLOW_Y_OFFSET を使う */}
+          <div
+            className={[
+              'flex items-start rounded transition-colors cursor-pointer',
+              // body が挿入先として選択されているとき: 点線ハイライト
+              isBodyInsertTarget
+                ? 'outline outline-2 outline-dashed outline-amber-400 bg-amber-50/60'
+                : 'hover:bg-amber-50/20',
+            ].join(' ')}
+            onClick={handleBodyClick}
+            title={isBodyInsertTarget ? 'ここに挿入されます（右クリックでステップを追加）' : 'クリックして body を挿入先に設定'}
+            role="button"
+            aria-label={`${step.name || 'ForEach'} の body（クリックで挿入先に設定）`}
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleBodyClick(e as unknown as React.MouseEvent) } }}
+          >
             {renderSteps(loopBody)}
             {loopBody.length === 0 && (
-              <span className="text-[10px] text-das-textDim italic px-3 mt-2">（body が空）</span>
+              <div
+                className="flex items-center gap-1 self-start shrink-0 px-2"
+                style={{ marginTop: `${FLOW_Y_OFFSET - 2}px` }}
+              >
+                {/* 小さな空 body 表示: 実機に近い「○—○」を省スペースで再現 */}
+                <div className="w-2.5 h-2.5 rounded-full border-2 border-amber-400 bg-white shrink-0" aria-hidden="true" />
+                <div className="h-px w-4 bg-amber-300" aria-hidden="true" />
+                <div className="w-2.5 h-2.5 rounded-full border-2 border-amber-400 bg-white shrink-0" aria-hidden="true" />
+                <span className="text-[10px] text-amber-600 italic ml-1">（body が空）</span>
+                {isBodyInsertTarget && (
+                  <span className="ml-1 rounded bg-amber-400 px-1 py-0 text-[9px] text-white font-medium">
+                    ここに挿入
+                  </span>
+                )}
+              </div>
+            )}
+            {loopBody.length > 0 && isBodyInsertTarget && (
+              <div
+                className="self-start shrink-0 px-1"
+                style={{ marginTop: `${FLOW_Y_OFFSET - 2}px` }}
+              >
+                <span className="rounded bg-amber-400 px-1 py-0 text-[9px] text-white font-medium">
+                  ここに挿入
+                </span>
+              </div>
             )}
           </div>
           {/* body 末尾のフローポイント */}
-          <div className="flex items-center self-stretch mt-3">
+          <div
+            className="flex items-center self-start shrink-0"
+            style={{ marginTop: `${FLOW_Y_OFFSET}px` }}
+          >
             <FlowLine width={4} loop />
             <FlowPoint loop label={`${label} body 終了`} />
           </div>
