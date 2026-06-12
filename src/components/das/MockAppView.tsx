@@ -9,7 +9,7 @@
 
 import React from 'react'
 import type { AppWidget, MockApp } from '../../model/mockApp'
-import { applyTimeline } from '../../model/mockApp'
+import { applyTimeline, findWidget } from '../../model/mockApp'
 
 // ---- ウィジェット描画 ----------------------------------------
 
@@ -17,16 +17,36 @@ interface WidgetProps {
   widget: AppWidget
   onRightClick?: (widget: AppWidget, e: React.MouseEvent) => void
   selectedWidgetId?: string | null
+  /**
+   * ForEach 選択中ハイライト（DALoopFinder.png 準拠）:
+   *   loopScopeSelector  = スコープ要素の CSS 風セレクタ → 青枠 + 「loop」タグ
+   *   elementSelector    = 最初の要素のセレクタ → 緑枠 + 「element」タグ
+   */
+  loopScopeSelector?: string | null
+  elementSelector?: string | null
 }
 
 const WidgetComponent = React.memo(function WidgetComponent({
   widget,
   onRightClick,
   selectedWidgetId,
+  loopScopeSelector,
+  elementSelector,
 }: WidgetProps) {
   if (!widget.visible) return null
 
   const isSelected = selectedWidgetId === widget.id
+
+  // loop/element ハイライト判定（DALoopFinder.png 準拠）
+  // 単一ウィジェットで findWidget を呼んでセレクタ一致を確認する
+  const isLoopScope =
+    loopScopeSelector
+      ? findWidget([widget], loopScopeSelector) !== undefined
+      : false
+  const isLoopElement =
+    elementSelector
+      ? findWidget([widget], elementSelector) !== undefined
+      : false
 
   const handleRightClick = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -36,24 +56,57 @@ const WidgetComponent = React.memo(function WidgetComponent({
 
   const baseClass = [
     'select-none cursor-context-menu',
-    isSelected ? 'ring-2 ring-ds-accent2' : '',
+    isLoopElement
+      ? 'outline outline-2 outline-green-500'
+      : isLoopScope
+        ? 'outline outline-2 outline-blue-500'
+        : isSelected
+          ? 'ring-2 ring-ds-accent2'
+          : '',
   ].join(' ')
+
+  // loop/element バッジ（DALoopFinder.png 準拠の青/緑タグ）
+  // isLoopScope → 青地白文字「loop」、isLoopElement → 緑地白文字「element」
+  const loopBadge =
+    isLoopElement ? (
+      <span
+        className="absolute -top-3 left-0 z-20 rounded-sm bg-green-500 px-1 text-[9px] font-bold text-white leading-4"
+        aria-label="loop element"
+      >
+        element
+      </span>
+    ) : isLoopScope ? (
+      <span
+        className="absolute -top-3 left-0 z-20 rounded-sm bg-blue-500 px-1 text-[9px] font-bold text-white leading-4"
+        aria-label="loop scope"
+      >
+        loop
+      </span>
+    ) : null
+
+  // 子ウィジェットへ loop props を伝達するヘルパー
+  const childProps = {
+    onRightClick,
+    selectedWidgetId,
+    loopScopeSelector,
+    elementSelector,
+  }
 
   switch (widget.type) {
     case 'window':
       return (
         <div
-          className={`${baseClass} rounded border border-gray-400 bg-gray-100 p-2`}
+          className={`${baseClass} relative rounded border border-gray-400 bg-gray-100 p-2`}
           role="group"
           aria-label={widget.attrs['title'] ?? widget.attrs['name'] ?? 'ウィンドウ'}
           onContextMenu={handleRightClick}
         >
+          {loopBadge}
           {widget.children.map((child) => (
             <WidgetComponent
               key={child.id}
               widget={child}
-              onRightClick={onRightClick}
-              selectedWidgetId={selectedWidgetId}
+              {...childProps}
             />
           ))}
         </div>
@@ -62,63 +115,72 @@ const WidgetComponent = React.memo(function WidgetComponent({
     case 'button': {
       const isDisabled = widget.enabled === false
       return (
-        <button
-          disabled={isDisabled}
-          className={[
-            baseClass,
-            'rounded border px-4 py-1 text-[13px]',
-            isDisabled
-              ? 'border-gray-300 bg-gray-200 text-gray-400 cursor-not-allowed'
-              : 'border-gray-400 bg-[#e1e1e1] text-gray-800 hover:bg-[#d0d0d0] active:bg-[#c0c0c0]',
-          ].join(' ')}
-          onContextMenu={handleRightClick}
-          aria-label={widget.attrs['name'] ?? widget.text}
-          aria-disabled={isDisabled}
-        >
-          {widget.text ?? widget.attrs['name']}
-        </button>
+        <div className="relative inline-block">
+          {loopBadge}
+          <button
+            disabled={isDisabled}
+            className={[
+              baseClass,
+              'rounded border px-4 py-1 text-[13px]',
+              isDisabled
+                ? 'border-gray-300 bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'border-gray-400 bg-[#e1e1e1] text-gray-800 hover:bg-[#d0d0d0] active:bg-[#c0c0c0]',
+            ].join(' ')}
+            onContextMenu={handleRightClick}
+            aria-label={widget.attrs['name'] ?? widget.text}
+            aria-disabled={isDisabled}
+          >
+            {widget.text ?? widget.attrs['name']}
+          </button>
+        </div>
       )
     }
 
     case 'label':
       return (
-        <label
-          className={`${baseClass} text-[13px] text-gray-700`}
-          onContextMenu={handleRightClick}
-        >
-          {widget.text ?? widget.attrs['name']}
-        </label>
+        <div className="relative inline-block">
+          {loopBadge}
+          <label
+            className={`${baseClass} text-[13px] text-gray-700`}
+            onContextMenu={handleRightClick}
+          >
+            {widget.text ?? widget.attrs['name']}
+          </label>
+        </div>
       )
 
     case 'textfield':
       return (
-        <input
-          readOnly
-          value={widget.text ?? widget.attrs['value'] ?? ''}
-          className={[
-            baseClass,
-            'rounded border border-gray-400 bg-white px-2 py-0.5 text-[13px] text-gray-800',
-            'read-only:bg-gray-50',
-          ].join(' ')}
-          onContextMenu={handleRightClick}
-          aria-label={widget.attrs['name']}
-        />
+        <div className="relative inline-block">
+          {loopBadge}
+          <input
+            readOnly
+            value={widget.text ?? widget.attrs['value'] ?? ''}
+            className={[
+              baseClass,
+              'rounded border border-gray-400 bg-white px-2 py-0.5 text-[13px] text-gray-800',
+              'read-only:bg-gray-50',
+            ].join(' ')}
+            onContextMenu={handleRightClick}
+            aria-label={widget.attrs['name']}
+          />
+        </div>
       )
 
     case 'listitem':
       return (
         <div
           role="listitem"
-          className={`${baseClass} rounded px-2 py-0.5 text-[12px] text-gray-700 hover:bg-blue-100`}
+          className={`${baseClass} relative rounded px-2 py-0.5 text-[12px] text-gray-700 hover:bg-blue-100`}
           onContextMenu={handleRightClick}
         >
+          {loopBadge}
           {widget.text ?? widget.attrs['name']}
           {widget.children.map((child) => (
             <WidgetComponent
               key={child.id}
               widget={child}
-              onRightClick={onRightClick}
-              selectedWidgetId={selectedWidgetId}
+              {...childProps}
             />
           ))}
         </div>
@@ -126,23 +188,25 @@ const WidgetComponent = React.memo(function WidgetComponent({
 
     case 'table':
       return (
-        <table
-          className={`${baseClass} w-full border-collapse text-[12px]`}
-          role="grid"
-          aria-label={widget.attrs['name']}
-          onContextMenu={handleRightClick}
-        >
-          <tbody>
-            {widget.children.map((row) => (
-              <WidgetComponent
-                key={row.id}
-                widget={row}
-                onRightClick={onRightClick}
-                selectedWidgetId={selectedWidgetId}
-              />
-            ))}
-          </tbody>
-        </table>
+        <div className="relative">
+          {loopBadge}
+          <table
+            className={`${baseClass} w-full border-collapse text-[12px]`}
+            role="grid"
+            aria-label={widget.attrs['name']}
+            onContextMenu={handleRightClick}
+          >
+            <tbody>
+              {widget.children.map((row) => (
+                <WidgetComponent
+                  key={row.id}
+                  widget={row}
+                  {...childProps}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       )
 
     case 'tablerow':
@@ -156,8 +220,7 @@ const WidgetComponent = React.memo(function WidgetComponent({
             <WidgetComponent
               key={cell.id}
               widget={cell}
-              onRightClick={onRightClick}
-              selectedWidgetId={selectedWidgetId}
+              {...childProps}
             />
           ))}
         </tr>
@@ -167,24 +230,28 @@ const WidgetComponent = React.memo(function WidgetComponent({
       return (
         <td
           role="gridcell"
-          className={`${baseClass} border border-gray-300 px-2 py-1`}
+          className={`${baseClass} relative border border-gray-300 px-2 py-1`}
           onContextMenu={handleRightClick}
         >
+          {loopBadge}
           {widget.text ?? widget.attrs['value']}
         </td>
       )
 
     case 'checkbox':
       return (
-        <label className={`${baseClass} flex items-center gap-1.5 text-[13px] text-gray-700`} onContextMenu={handleRightClick}>
-          <input
-            type="checkbox"
-            readOnly
-            checked={widget.attrs['checked'] === 'true'}
-            className="cursor-context-menu"
-          />
-          {widget.text ?? widget.attrs['name']}
-        </label>
+        <div className="relative inline-block">
+          {loopBadge}
+          <label className={`${baseClass} flex items-center gap-1.5 text-[13px] text-gray-700`} onContextMenu={handleRightClick}>
+            <input
+              type="checkbox"
+              readOnly
+              checked={widget.attrs['checked'] === 'true'}
+              className="cursor-context-menu"
+            />
+            {widget.text ?? widget.attrs['name']}
+          </label>
+        </div>
       )
 
     case 'notification':
@@ -193,18 +260,18 @@ const WidgetComponent = React.memo(function WidgetComponent({
           role="alert"
           className={[
             baseClass,
-            'rounded border border-yellow-400 bg-yellow-100 px-3 py-2 text-[13px] text-yellow-800',
+            'relative rounded border border-yellow-400 bg-yellow-100 px-3 py-2 text-[13px] text-yellow-800',
           ].join(' ')}
           onContextMenu={handleRightClick}
         >
+          {loopBadge}
           <span className="mr-2">⚠</span>
           {widget.text ?? widget.attrs['name']}
           {widget.children.map((child) => (
             <WidgetComponent
               key={child.id}
               widget={child}
-              onRightClick={onRightClick}
-              selectedWidgetId={selectedWidgetId}
+              {...childProps}
             />
           ))}
         </div>
@@ -213,9 +280,10 @@ const WidgetComponent = React.memo(function WidgetComponent({
     default:
       return (
         <div
-          className={`${baseClass} text-[12px] text-gray-500`}
+          className={`${baseClass} relative text-[12px] text-gray-500`}
           onContextMenu={handleRightClick}
         >
+          {loopBadge}
           [{widget.type}] {widget.text ?? widget.attrs['name']}
         </div>
       )
@@ -229,6 +297,10 @@ interface MockAppViewProps {
   currentTick: number
   onRightClick?: (widget: AppWidget, e: React.MouseEvent) => void
   selectedWidgetId?: string | null
+  /** ForEach 選択中ハイライト: スコープ要素セレクタ（青枠 + loop タグ） */
+  loopScopeSelector?: string | null
+  /** ForEach 選択中ハイライト: 最初の要素セレクタ（緑枠 + element タグ） */
+  elementSelector?: string | null
 }
 
 export default React.memo(function MockAppView({
@@ -236,6 +308,8 @@ export default React.memo(function MockAppView({
   currentTick,
   onRightClick,
   selectedWidgetId,
+  loopScopeSelector,
+  elementSelector,
 }: MockAppViewProps) {
   const widgets = applyTimeline(app, currentTick)
 
@@ -284,6 +358,8 @@ export default React.memo(function MockAppView({
               widget={widget}
               onRightClick={onRightClick}
               selectedWidgetId={selectedWidgetId}
+              loopScopeSelector={loopScopeSelector}
+              elementSelector={elementSelector}
             />
           ))}
           {widgets.length === 0 && (

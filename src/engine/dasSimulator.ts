@@ -664,25 +664,38 @@ function execForEach(state: SimState, step: DasStep, action: Extract<DasAction, 
     return
   }
 
+  // excludeFirst: 最初の要素をスキップ（□最初を除外 チェックボックス）
+  const iterElements = action.excludeFirst ? elements.slice(1) : elements
+
   state.log.push({
     stepId: step.id,
     stepName: step.name,
     status: 'ok',
-    message: `要素の繰り返し 開始: ${elements.length} 件を反復（スコープ: ${action.scopeFinder.selector}）`,
+    message: `要素の繰り返し 開始: ${iterElements.length} 件を反復（スコープ: ${action.scopeFinder.selector}${action.excludeFirst ? '、最初を除外' : ''}）`,
     tick: state.currentTick,
   })
   state.currentTick += 1
 
+  // iterationVariable: 各反復のインデックスをシミュレータ変数として記録する
+  // （□イテレーション変数 ON のとき、state.data に {index: i} レコードを格納）
+  const iterVarName = action.iterationVariable ? (action.iterationVariableName || 'i') : null
+
   // 各要素を反復
-  for (let i = 0; i < elements.length; i++) {
-    const elem = elements[i]
+  for (let i = 0; i < iterElements.length; i++) {
+    const elem = iterElements[i]
     state.forEachStack.push({ scopeWidget, currentElement: elem })
+
+    // イテレーション変数をシミュレータ状態パネルに記録
+    if (iterVarName) {
+      if (!state.data[iterVarName]) state.data[iterVarName] = []
+      state.data[iterVarName].push({ index: String(i) })
+    }
 
     state.log.push({
       stepId: step.id,
-      stepName: `${step.name}[${i + 1}/${elements.length}]`,
+      stepName: `${step.name}[${i + 1}/${iterElements.length}]`,
       status: 'ok',
-      message: `反復 ${i + 1}: ${elem.type}[${elem.attrs['name'] ?? elem.id}]`,
+      message: `反復 ${i + 1}: ${elem.type}[${elem.attrs['name'] ?? elem.id}]${iterVarName ? ` (${iterVarName}=${i})` : ''}`,
       tick: state.currentTick,
     })
 

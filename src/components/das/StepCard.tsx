@@ -7,7 +7,10 @@
 //
 // 特殊構造:
 //   GuardedChoice: カード内にガードレーン（GuardLane）が縦に並ぶ
-//   ForEach: カード内に body の横フロー（再帰）
+//   ForEach / Loop / WhileLoop:
+//     実機 DS_4_loop_real.png 準拠 — カード右端に黄色フローマーカー（LoopFlowMarker）を配置し、
+//     body ステップを同レーン上の右側（カード外）に横並びで描画する。
+//     カード内には body を入れ子表示しない。
 //
 // ⚠ バッジ: 設定不備時にカード右上に表示
 // 選択中: ring-2 ring-green-500（緑枠）
@@ -20,7 +23,7 @@ import type { DasStep } from '../../model/dasRobot'
 import { DAS_ACTION_LABELS } from '../../model/dasRobot'
 import { dasStepIssue } from '../../engine/dasStepStatus'
 import type { DasSimResult } from '../../engine/dasSimulator'
-import { FlowPoint, FlowLine } from './FlowPoint'
+import { FlowPoint, FlowLine, LoopFlowMarker } from './FlowPoint'
 import { GuardLane, AddGuardButton } from './GuardLane'
 import {
   BrowserForm,
@@ -29,6 +32,7 @@ import {
   ExtractValueForm,
   EnterTextForm,
   ForEachForm,
+  WhileLoopForm,
   ThrowForm,
   ReturnForm,
   StepNameEditor,
@@ -153,16 +157,29 @@ export const StepCard = React.memo(function StepCard({
   const label = DAS_ACTION_LABELS[action.type] ?? action.type
   const displayName = step.name || label
 
+  // ループ系ステップ（body を持つ）
+  const isLoopStep =
+    action.type === 'ForEach' || action.type === 'Loop' || action.type === 'WhileLoop'
+  const loopBody =
+    action.type === 'ForEach'
+      ? action.body
+      : action.type === 'Loop'
+        ? action.body
+        : action.type === 'WhileLoop'
+          ? action.body
+          : []
+
   return (
+    // ループ系: カード + 黄色フローマーカー + body ステップを横一列で並べる
     <div
       role="article"
       aria-label={`ステップ: ${displayName}`}
-      className="relative shrink-0"
+      className={['flex items-start shrink-0', isLoopStep ? '' : 'relative'].join(' ')}
     >
       {/* カード本体 */}
       <div
         className={[
-          'relative rounded border bg-ds-bg text-ds-text cursor-pointer select-none',
+          'relative rounded border bg-ds-bg text-ds-text cursor-pointer select-none shrink-0',
           'border-ds-border',
           statusBorderColor,
           !step.enabled ? 'opacity-50' : '',
@@ -225,7 +242,7 @@ export const StepCard = React.memo(function StepCard({
         {/* ---- 展開時 ---- */}
         {expanded && (
           <>
-            {/* 展開時ヘッダ */}
+            {/* 展開時ヘッダ: ↻ アイコン + ラベル + ^ + ? */}
             <div className="flex items-center gap-1.5 border-b border-ds-border px-2 py-1.5 text-[12px]">
               <span className="text-[13px] shrink-0">{icon}</span>
               <span className="flex-1 text-[11px] font-medium truncate">{label}</span>
@@ -260,10 +277,13 @@ export const StepCard = React.memo(function StepCard({
               {action.type === 'ExtractValue' && <ExtractValueForm step={step} action={action} />}
               {action.type === 'EnterText' && <EnterTextForm step={step} action={action} />}
               {action.type === 'ForEach' && <ForEachForm step={step} action={action} />}
+              {action.type === 'WhileLoop' && <WhileLoopForm step={step} action={action} />}
               {action.type === 'Throw' && <ThrowForm step={step} action={action} />}
               {action.type === 'Return' && <ReturnForm />}
               {action.type === 'Loop' && (
-                <div className="text-[10px] text-ds-textDim italic">🔁 ループ（Body ステップは下の横フローに表示）</div>
+                <div className="text-[10px] text-ds-textDim italic">
+                  🔁 ループ（Body ステップは右の横フローに表示）
+                </div>
               )}
               {action.type === 'Break' && (
                 <div className="text-[10px] text-ds-textDim italic">⛔ ループを終了します</div>
@@ -278,8 +298,7 @@ export const StepCard = React.memo(function StepCard({
                 <div className="text-[10px] text-ds-textDim italic">📦 グループ（未実装ステップ）</div>
               )}
               {(action.type === 'Assign' ||
-                action.type === 'TryCatch' ||
-                action.type === 'WhileLoop') && (
+                action.type === 'TryCatch') && (
                 <div className="text-[10px] text-ds-textDim italic">
                   この研修ラボでは未対応のステップです
                 </div>
@@ -330,43 +349,39 @@ export const StepCard = React.memo(function StepCard({
                 <AddGuardButton stepId={step.id} />
               </div>
             )}
-
-            {/* ---- ForEach: body の横フロー ---- */}
-            {action.type === 'ForEach' && (
-              <div className="border-t border-ds-border p-2">
-                <div className="text-[10px] text-ds-textDim mb-1">body:</div>
-                <div className="flex items-center overflow-x-auto">
-                  <FlowPoint label="ForEach body 開始" />
-                  <FlowLine width={8} />
-                  {renderSteps(action.body)}
-                  {action.body.length === 0 && (
-                    <span className="text-[10px] text-ds-textDim/60 italic px-2">（body が空）</span>
-                  )}
-                  <FlowLine width={8} />
-                  <FlowPoint label="ForEach body 終了" />
-                </div>
-              </div>
-            )}
-
-            {/* ---- Loop: body の横フロー ---- */}
-            {action.type === 'Loop' && (
-              <div className="border-t border-ds-border p-2">
-                <div className="text-[10px] text-ds-textDim mb-1">body:</div>
-                <div className="flex items-center overflow-x-auto">
-                  <FlowPoint label="Loop body 開始" />
-                  <FlowLine width={8} />
-                  {renderSteps(action.body)}
-                  {action.body.length === 0 && (
-                    <span className="text-[10px] text-ds-textDim/60 italic px-2">（body が空）</span>
-                  )}
-                  <FlowLine width={8} />
-                  <FlowPoint label="Loop body 終了" />
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>
+
+      {/* ---- ループ系: カード右に黄色フローマーカー + body ステップ横並び ----
+       *
+       * 実機 DS_4_loop_real.png 準拠:
+       *   カード右端 → 黄色○フローポイント（LoopFlowMarker）→ body ステップ列
+       *   本体ステップはカード外の同レーン上で横並び。
+       *   折りたたみ時も黄色フローポイントは常時表示（実機と同様）。
+       */}
+      {isLoopStep && (
+        <div className="flex items-start self-stretch ml-0">
+          {/* 黄色フローポイント + 縦線 + 三角マーカー */}
+          <div className="flex items-center self-stretch mt-3">
+            <FlowLine width={4} loop />
+            <LoopFlowMarker />
+            <FlowLine width={4} loop />
+          </div>
+          {/* body ステップ列（再帰描画） */}
+          <div className="flex items-start mt-[5px]">
+            {renderSteps(loopBody)}
+            {loopBody.length === 0 && (
+              <span className="text-[10px] text-ds-textDim/60 italic px-3 mt-2">（body が空）</span>
+            )}
+          </div>
+          {/* body 末尾のフローポイント */}
+          <div className="flex items-center self-stretch mt-3">
+            <FlowLine width={4} loop />
+            <FlowPoint loop label={`${label} body 終了`} />
+          </div>
+        </div>
+      )}
     </div>
   )
 })

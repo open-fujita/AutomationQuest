@@ -1122,6 +1122,76 @@ describe('dasStepIssue', () => {
 })
 
 // ============================================================
+// 9b. ForEach: excludeFirst / iterationVariable 挙動テスト（2026.1 追加）
+// ============================================================
+
+describe('ForEach: excludeFirst / iterationVariable', () => {
+  /** MockApp: 3 件の listitem を持つリスト */
+  function makeListApp(): MockApp {
+    return makeApp('リスト', [
+      makeWidget('list', 'listitem', { name: 'list' }, {
+        children: [
+          makeWidget('item-1', 'listitem', { name: 'item-1' }, { text: '品目1' }),
+          makeWidget('item-2', 'listitem', { name: 'item-2' }, { text: '品目2' }),
+          makeWidget('item-3', 'listitem', { name: 'item-3' }, { text: '品目3' }),
+        ],
+      }),
+    ])
+  }
+
+  it('excludeFirst=true のとき最初の要素をスキップして 2 件を反復する', () => {
+    const app = makeListApp()
+    const robot = makeRobot([
+      makeStep('foreach1', {
+        type: 'ForEach',
+        scopeFinder: defaultFinder('listitem[name="list"]'),
+        scopeFinderName: 'listScope',
+        elementFinder: { kind: 'component', selector: '> listitem', reuse: 'none', scopeRef: 'listScope' },
+        body: [
+          makeStep('extract', {
+            type: 'ExtractValue',
+            finder: { kind: 'component', selector: 'listitem', reuse: 'none', scopeRef: 'listScope' },
+            toVariable: '品目',
+            attribute: 'text',
+          }),
+        ],
+        excludeFirst: true,   // 最初を除外
+      }),
+    ])
+
+    const sim = runDasRobot(robot, app, { maxTick: 120 })
+    // 3 件中最初の 1 件をスキップ → 2 件反復（item-2, item-3）
+    expect(sim.data['品目']?.length ?? 0).toBe(2)
+    expect(sim.errors).toHaveLength(0)
+    // ログに「最初を除外」が記録されていること
+    expect(sim.log.some((l) => l.message.includes('最初を除外'))).toBe(true)
+  })
+
+  it('iterationVariable=true のとき反復インデックスが変数として state.data に記録される', () => {
+    const app = makeListApp()
+    const robot = makeRobot([
+      makeStep('foreach1', {
+        type: 'ForEach',
+        scopeFinder: defaultFinder('listitem[name="list"]'),
+        scopeFinderName: 'listScope',
+        elementFinder: { kind: 'component', selector: '> listitem', reuse: 'none', scopeRef: 'listScope' },
+        body: [],
+        iterationVariable: true,        // イテレーション変数 ON
+        iterationVariableName: 'idx',   // 変数名
+      }),
+    ])
+
+    const sim = runDasRobot(robot, app, { maxTick: 120 })
+    // 3 件の反復 → idx に 3 レコード（{index:"0"}, {index:"1"}, {index:"2"}）
+    expect(sim.data['idx']).toHaveLength(3)
+    expect(sim.data['idx']?.[0]?.index).toBe('0')
+    expect(sim.data['idx']?.[1]?.index).toBe('1')
+    expect(sim.data['idx']?.[2]?.index).toBe('2')
+    expect(sim.errors).toHaveLength(0)
+  })
+})
+
+// ============================================================
 // 10. ガードチョイス排他実行の確認
 // ============================================================
 

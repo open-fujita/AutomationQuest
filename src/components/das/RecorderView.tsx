@@ -282,6 +282,45 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
   const selectedStepId = useDasRobotStore((s) => s.selectedStepId)
   const robot = useDasRobotStore((s) => s.robot)
 
+  // 選択ステップが ForEach の場合に loop/element ハイライト用セレクタを導出する
+  // （DALoopFinder.png 準拠: スコープ = 青「loop」、最初の要素 = 緑「element」）
+  const { loopScopeSelector, loopElementSelector } = (() => {
+    if (!selectedStepId) return { loopScopeSelector: null, loopElementSelector: null }
+    // ステップを再帰探索
+    function findStep(steps: typeof robot.steps): typeof robot.steps[0] | null {
+      for (const s of steps) {
+        if (s.id === selectedStepId) return s
+        if (s.action.type === 'ForEach') {
+          const found = findStep(s.action.body)
+          if (found) return found
+        }
+        if (s.action.type === 'Loop') {
+          const found = findStep(s.action.body)
+          if (found) return found
+        }
+        if (s.action.type === 'GuardedChoice') {
+          for (const g of s.action.guards) {
+            const found = findStep(g.steps)
+            if (found) return found
+          }
+        }
+      }
+      return null
+    }
+    const step = findStep(robot.steps)
+    if (!step || step.action.type !== 'ForEach') {
+      return { loopScopeSelector: null, loopElementSelector: null }
+    }
+    const feAction = step.action
+    // 要素セレクタ: '> TYPE' 形式から TYPE 部分を取り出す（相対セレクタを絶対セレクタに変換）
+    const rawElemSel = feAction.elementFinder.selector.trim()
+    const elemSel = rawElemSel.startsWith('>') ? rawElemSel.slice(1).trim() : rawElemSel
+    return {
+      loopScopeSelector: feAction.scopeFinder.selector || null,
+      loopElementSelector: elemSel || null,
+    }
+  })()
+
   // アプリ画面での要素右クリック
   const handleRightClick = useCallback((widget: AppWidget, e: React.MouseEvent) => {
     e.preventDefault()
@@ -430,6 +469,8 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
               currentTick={currentTick}
               onRightClick={handleRightClick}
               selectedWidgetId={selectedWidget?.id}
+              loopScopeSelector={loopScopeSelector}
+              elementSelector={loopElementSelector}
             />
           )}
 

@@ -171,6 +171,23 @@ export type DasAction =
       /** エレメントファインダー（scopeRef + 相対セレクタ。例: '> DIV'） */
       elementFinder: DasFinder
       body: DasStep[]
+      /**
+       * 要素のエイリアス（各反復要素の参照名。例: element）。
+       * 実機フォーム「要素のエイリアス」フィールドに対応。シミュレータは未使用（UI 表示用）。
+       */
+      elementAlias?: string
+      /**
+       * 最初の要素をスキップするか（□最初を除外 チェックボックス）。
+       * true のとき、収集した要素列の先頭 1 件を除外してから反復する。
+       */
+      excludeFirst?: boolean
+      /**
+       * イテレーション変数を有効にするか（□イテレーション変数 チェックボックス）。
+       * true のとき、各反復のインデックス（0 始まり）を iterationVariableName に格納する。
+       */
+      iterationVariable?: boolean
+      /** イテレーション変数名（iterationVariable=true のとき有効）。例: i */
+      iterationVariableName?: string
     }
   | { type: 'Loop'; body: DasStep[] }
   | { type: 'Break' }
