@@ -166,8 +166,8 @@ export const StepCard = React.memo(function StepCard({
           'border-ds-border',
           statusBorderColor,
           !step.enabled ? 'opacity-50' : '',
-          // GuardedChoice と ForEach はカード幅を広げる
-          action.type === 'GuardedChoice' ? 'min-w-[280px] max-w-[480px]' : 'min-w-[120px] max-w-[280px]',
+          // GuardedChoice はレーンが横に伸びるため幅制限を外す
+          action.type === 'GuardedChoice' ? 'min-w-[280px]' : 'min-w-[120px] max-w-[280px]',
         ].join(' ')}
         onClick={handleClick}
         onKeyDown={handleKeyDown}

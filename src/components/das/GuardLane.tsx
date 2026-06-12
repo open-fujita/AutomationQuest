@@ -1,14 +1,23 @@
 // ============================================================
 // GuardLane — ガードチョイスカード内のガードレーン
 //
-// 実機 UI 画像（GuardedChoiceLocation.png / add_guard2.png）準拠:
-//   各レーン = ガード種別ドロップダウン + インライン設定フォーム → 青線 → ○ → 枝ステップカード列 → ○
+// 実機 UI スクリーンショット（DS_3_guardedchoice_real.png）準拠:
+//
+//   レーン構造（横一列）:
+//     ガード設定ボックス（白ボックス: ドロップダウン＋設定フィールド縦並び）
+//       → 青線 → ○ → 枝ステップカード列 → 右端合流線
+//
+//   複数レーン = 縦積み（左側の縦線から各レーンに分配）
 //   レーン間に破線 + 緑の ⊕（クリックでガード追加）
+//
+// フィールド検証:
+//   秒数が空/不正なとき: 入力欄を赤枠 + 右に赤い ❗ アイコン
+//   ファインダーのコンポーネントが未設定: FinderForm に showError を渡して ❗ 表示
 //
 // アクセシビリティ: ドロップダウンに aria-label、⊕ ボタンに aria-label
 // ============================================================
 
-import React from 'react'
+import React, { useState } from 'react'
 import type { Guard, GuardType, DasFinder } from '../../model/dasRobot'
 import { GUARD_TYPE_DROPDOWN_LABELS } from '../../model/dasRobot'
 import { useDasRobotStore } from '../../store/dasRobotStore'
@@ -26,10 +35,6 @@ const GUARD_TYPES: GuardType[] = [
   'treeStoppedChanging',
   'timeout',
 ]
-
-// ---- 遅延インポート（循環参照回避: StepCard → GuardLane → StepCard）----
-// StepCard をここでは型だけ使い、実際の描画は dynamic import 的に扱う
-// （実際には props で children として受け取る方式を採用）
 
 interface GuardLaneProps {
   guard: Guard
@@ -51,6 +56,11 @@ export const GuardLane = React.memo(function GuardLane({
 }: GuardLaneProps) {
   const removeGuard = useDasRobotStore((s) => s.removeGuard)
   const updateGuardTimeout = useDasRobotStore((s) => s.updateGuardTimeout)
+
+  // 秒数フィールドのローカル状態（空文字を許容して赤枠表示するため）
+  const [secondsInput, setSecondsInput] = useState<string>(
+    guard.seconds !== undefined ? String(guard.seconds) : '',
+  )
 
   // ガード種別変更
   const handleTypeChange = (newType: GuardType) => {
@@ -77,6 +87,10 @@ export const GuardLane = React.memo(function GuardLane({
         }),
       },
     }))
+    // 秒数ローカル状態リセット
+    if (newType === 'timeout') {
+      setSecondsInput(guard.seconds !== undefined ? String(guard.seconds) : '60')
+    }
   }
 
   // ファインダー変更
@@ -95,103 +109,154 @@ export const GuardLane = React.memo(function GuardLane({
     }))
   }
 
+  // 秒数 input の onChange（ローカル state を更新、数値確定時に store へ）
+  const handleSecondsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value
+    setSecondsInput(raw)
+    const parsed = parseInt(raw, 10)
+    if (!isNaN(parsed) && parsed >= 1) {
+      updateGuardTimeout(parentStepId, guardIndex, parsed)
+    }
+  }
+
+  // 秒数が空/不正かどうか
+  const secondsInvalid = secondsInput === '' || isNaN(parseInt(secondsInput, 10)) || parseInt(secondsInput, 10) < 1
+
+  // ファインダーが未設定かどうか（セレクタが空）
+  const finderEmpty = !guard.finder?.selector || guard.finder.selector.trim() === ''
+
   return (
+    // 横レーン: ガード設定ボックス → 青線 → ○ → 枝ステップ
     <div
       className={[
-        'rounded border',
-        isWinner
-          ? 'border-green-500/50 bg-green-400/5'
-          : 'border-ds-border/60 bg-ds-panelAlt',
+        'flex items-start gap-0 overflow-x-auto',
+        // 成立ガードは全体を薄緑でハイライト
+        isWinner ? 'bg-green-400/5 rounded' : '',
       ].join(' ')}
     >
-      {/* レーンヘッダ: ガード種別ドロップダウン + 削除ボタン */}
-      <div className="flex items-center gap-1 p-1.5">
-        <select
-          value={guard.type}
-          onChange={(e) => handleTypeChange(e.target.value as GuardType)}
-          className={[
-            'flex-1 rounded border px-1.5 py-0.5 text-[11px] focus:outline-none',
-            'border-ds-border bg-ds-bg text-ds-text focus:border-ds-accent2',
-            isWinner ? 'border-green-500/60 text-green-300' : '',
-          ].join(' ')}
-          aria-label={`ガード ${guardIndex + 1} の種別`}
-        >
-          {GUARD_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {GUARD_TYPE_DROPDOWN_LABELS[t]}
-            </option>
-          ))}
-        </select>
-        {isWinner && (
-          <span className="shrink-0 text-[11px] text-green-400" title="成立したガード">✓</span>
-        )}
-        <button
-          type="button"
-          onClick={() => removeGuard(parentStepId, guardIndex)}
-          className="shrink-0 rounded px-1 py-0.5 text-[11px] text-ds-textDim hover:text-ds-err"
-          aria-label={`ガード ${guardIndex + 1} を削除`}
-          title="ガードを削除"
-        >
-          ✕
-        </button>
-      </div>
-
-      {/* ガード設定: timeout は秒数 input、Location/Application はファインダーフォーム */}
-      {guard.type === 'timeout' && (
-        <div className="px-2 pb-1.5">
-          <label
-            htmlFor={`guard-sec-${parentStepId}-${guardIndex}`}
-            className="block text-[10px] text-ds-textDim mb-0.5"
+      {/* ──────────────────────────────────────────────────
+          ガード設定ボックス（実機: 白い小ボックス＋薄いグレー枠）
+          ────────────────────────────────────────────────── */}
+      <div
+        className={[
+          'shrink-0 rounded border bg-white p-1.5 text-[11px] min-w-[130px] max-w-[200px]',
+          isWinner ? 'border-green-500/60' : 'border-ds-border/60',
+        ].join(' ')}
+      >
+        {/* ガード種別ドロップダウン + 削除ボタン */}
+        <div className="flex items-center gap-1 mb-1">
+          <select
+            value={guard.type}
+            onChange={(e) => handleTypeChange(e.target.value as GuardType)}
+            className={[
+              'flex-1 rounded border px-1 py-0.5 text-[11px] focus:outline-none bg-white',
+              isWinner
+                ? 'border-green-500/60 text-green-700 focus:border-green-500'
+                : 'border-ds-border text-ds-text focus:border-green-500',
+            ].join(' ')}
+            aria-label={`ガード ${guardIndex + 1} の種別`}
           >
-            秒
-          </label>
-          <input
-            id={`guard-sec-${parentStepId}-${guardIndex}`}
-            type="number"
-            min={1}
-            max={600}
-            value={guard.seconds ?? 60}
-            onChange={(e) => updateGuardTimeout(parentStepId, guardIndex, Number(e.target.value))}
-            className="w-24 rounded border border-ds-border bg-ds-bg px-2 py-0.5 text-[11px] text-ds-text focus:border-ds-accent2 focus:outline-none"
-            aria-label="タイムアウト秒数"
-          />
+            {GUARD_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {GUARD_TYPE_DROPDOWN_LABELS[t]}
+              </option>
+            ))}
+          </select>
+          {isWinner && (
+            <span className="shrink-0 text-[11px] text-green-500" title="成立したガード">✓</span>
+          )}
+          {/* 削除ボタン（控えめに） */}
+          <button
+            type="button"
+            onClick={() => removeGuard(parentStepId, guardIndex)}
+            className="shrink-0 rounded px-0.5 py-0.5 text-[10px] text-ds-textDim/60 hover:text-ds-err leading-none"
+            aria-label={`ガード ${guardIndex + 1} を削除`}
+            title="ガードを削除"
+          >
+            ✕
+          </button>
         </div>
-      )}
-      {guard.type === 'treeStoppedChanging' && (
-        <div className="px-2 pb-1.5">
-          <label className="block text-[10px] text-ds-textDim mb-0.5">ミリ秒</label>
-          <span className="text-[11px] text-ds-text font-mono">{guard.ms ?? 500}</span>
-        </div>
-      )}
-      {guard.finder !== undefined && guard.type !== 'timeout' && guard.type !== 'treeStoppedChanging' && (
-        <div className="px-2 pb-1.5">
+
+        {/* timeout: 秒数入力（赤枠 + ❗ バリデーション） */}
+        {guard.type === 'timeout' && (
+          <div>
+            <label
+              htmlFor={`guard-sec-${parentStepId}-${guardIndex}`}
+              className="block text-[10px] text-ds-textDim mb-0.5"
+            >
+              秒
+            </label>
+            <div className="flex items-center gap-1">
+              <input
+                id={`guard-sec-${parentStepId}-${guardIndex}`}
+                type="number"
+                min={1}
+                max={600}
+                value={secondsInput}
+                onChange={handleSecondsChange}
+                className={[
+                  'w-20 rounded border px-1.5 py-0.5 text-[11px] bg-ds-bg text-ds-text focus:outline-none',
+                  secondsInvalid
+                    ? 'border-red-500 focus:border-red-500'
+                    : 'border-ds-border focus:border-green-500',
+                ].join(' ')}
+                aria-label="タイムアウト秒数"
+                aria-invalid={secondsInvalid}
+              />
+              {secondsInvalid && (
+                <span
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] text-white"
+                  aria-label="秒数が未設定または不正です"
+                  title="秒数が未設定または不正です"
+                >
+                  ❗
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* treeStoppedChanging: ミリ秒表示 */}
+        {guard.type === 'treeStoppedChanging' && (
+          <div>
+            <label className="block text-[10px] text-ds-textDim mb-0.5">ミリ秒</label>
+            <span className="text-[11px] text-ds-text font-mono">{guard.ms ?? 500}</span>
+          </div>
+        )}
+
+        {/* Location / Application 系: ファインダーフォーム */}
+        {guard.finder !== undefined && guard.type !== 'timeout' && guard.type !== 'treeStoppedChanging' && (
           <FinderForm
             finder={guard.finder}
             onChange={handleFinderChange}
+            showHeader={true}
+            headerLabel="コンポーネント"
             idPrefix={`guard-finder-${parentStepId}-${guardIndex}`}
+            showError={finderEmpty}
           />
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* 枝ステップの横フロー: → ○ → [枝ステップカード列] → ○ */}
-      <div className="flex items-start px-1.5 pb-1.5 gap-0 overflow-x-auto">
-        <div className="flex items-center shrink-0">
-          <FlowLine width={12} />
-          <FlowPoint label={`ガード ${guardIndex + 1} 枝の開始`} />
-          <FlowLine width={8} />
-        </div>
-        <div className="flex items-start gap-0">
-          {renderBranchSteps(guard.steps)}
-          {guard.steps.length === 0 && (
-            <div className="flex items-center text-[10px] text-ds-textDim/60 italic px-2 py-1 shrink-0">
-              （ステップなし）
-            </div>
-          )}
-        </div>
-        <div className="flex items-center shrink-0">
-          <FlowLine width={8} />
-          <FlowPoint label={`ガード ${guardIndex + 1} 枝の終了`} />
-        </div>
+      {/* ──────────────────────────────────────────────────
+          青線 → ○ → 枝ステップカード列（横フロー）
+          ────────────────────────────────────────────────── */}
+      <div className="flex items-start shrink-0">
+        <FlowLine width={16} />
+        <FlowPoint label={`ガード ${guardIndex + 1} 枝の開始`} />
+        <FlowLine width={8} />
+      </div>
+      <div className="flex items-start gap-0">
+        {renderBranchSteps(guard.steps)}
+        {guard.steps.length === 0 && (
+          <div className="flex items-center text-[10px] text-ds-textDim/60 italic px-2 py-1 shrink-0 self-center">
+            （ステップなし）
+          </div>
+        )}
+      </div>
+      {/* 右端合流線 */}
+      <div className="flex items-start shrink-0">
+        <FlowLine width={8} />
+        <FlowPoint label={`ガード ${guardIndex + 1} 枝の終了`} />
       </div>
     </div>
   )

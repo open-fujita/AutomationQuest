@@ -62,6 +62,11 @@ export interface DasFinder {
   textMatch?: boolean
   /** テキスト一致の正規表現文字列 */
   textMatchRegex?: string
+  /**
+   * □内部コンポーネント チェックボックス（実機 UI 2026.1 準拠）。
+   * シミュレータはセレクタベースのまま。UI 表示用フィールド。
+   */
+  innerComponent?: boolean
 }
 
 // ---- Guard（ガード7種）-----------------------------------------
@@ -280,17 +285,17 @@ export const GUARD_TYPE_LABELS: Record<GuardType, string> = {
 }
 
 /**
- * ガード種別ドロップダウンの表示文字列（実機 UI 画像準拠）。
- * 実機では「ロケーション...」「秒が経過した...」形式で省略表示される。
+ * ガード種別ドロップダウンの表示文字列（実機 UI 2026.1 準拠）。
+ * 実機スクリーンショット（DS_3_guardedchoice_real.png）の正式表記に統一。
  */
 export const GUARD_TYPE_DROPDOWN_LABELS: Record<GuardType, string> = {
-  timeout: '秒が経過した...',
-  locationFound: 'ロケーション...',
-  locationNotFound: 'ロケーション（不在）...',
-  locationRemoved: 'ロケーション（除去）...',
-  applicationFound: 'アプリケーション...',
-  applicationNotFound: 'アプリケーション（不在）...',
-  treeStoppedChanging: 'ツリーの変更停止...',
+  timeout: '時間経過',
+  locationFound: '該当するロケーション',
+  locationNotFound: '該当しないロケーション',
+  locationRemoved: '取り除かれたロケーション',
+  applicationFound: '該当するアプリケーション',
+  applicationNotFound: '該当しないアプリケーション',
+  treeStoppedChanging: 'ツリーの変更停止',
 }
 
 /** 安定 ID 生成（Math.random を使わない） */
