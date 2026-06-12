@@ -72,6 +72,21 @@ const WidgetComponent = React.memo(function WidgetComponent({
           : '',
   ].join(' ')
 
+  // <td>/<tr> 専用の選択・ハイライトクラス
+  // ring-* (box-shadow) は border-collapse: collapse のテーブルセル内で描画されない（ブラウザ仕様）。
+  // outline は border-collapse の影響を受けず確実に描画される。
+  // outline-offset に負値を指定することで inset 風の枠線になる。
+  const tableCellBaseClass = [
+    'select-none cursor-pointer',
+    isLoopElement
+      ? 'outline outline-2 outline-green-500 outline-offset-[-2px]'
+      : isLoopScope
+        ? 'outline outline-2 outline-blue-500 outline-offset-[-2px]'
+        : isSelected
+          ? 'bg-green-100 outline outline-2 outline-green-600 outline-offset-[-2px]'
+          : '',
+  ].join(' ')
+
   // loop/element バッジ（DALoopFinder.png 準拠の青/緑タグ）
   // isLoopScope → 青地白文字「loop」、isLoopElement → 緑地白文字「element」
   const loopBadge =
@@ -243,9 +258,11 @@ const WidgetComponent = React.memo(function WidgetComponent({
 
     case 'tablerow':
       return (
+        // ring-* (box-shadow) は border-collapse テーブルの <tr> では描画されないため
+        // tableCellBaseClass (outline ベース) を使用する
         <tr
           role="row"
-          className={`${baseClass} border-b border-gray-300`}
+          className={`${tableCellBaseClass} border-b border-gray-300`}
           onClick={handleLeftClick}
           onContextMenu={handleRightClick}
         >
@@ -261,9 +278,11 @@ const WidgetComponent = React.memo(function WidgetComponent({
 
     case 'tablecell':
       return (
+        // ring-* (box-shadow) は border-collapse テーブルの <td> では描画されないため
+        // tableCellBaseClass (outline ベース) を使用する
         <td
           role="gridcell"
-          className={`${baseClass} relative border border-gray-300 px-2 py-1`}
+          className={`${tableCellBaseClass} relative border border-gray-300 px-2 py-1`}
           onClick={handleLeftClick}
           onContextMenu={handleRightClick}
         >

@@ -326,3 +326,75 @@ describe('RecorderView selectedWidgetId null 安全テスト', () => {
     expect(result).toBeNull()
   })
 })
+
+// ============================================================
+// D5 tablecell 選択ハイライト修正テスト
+//
+// 修正確認: ring-* (box-shadow) は border-collapse テーブルの <td>/<tr> では描画されない。
+// tablecell を選択したとき、選択スタイル（outline ベース）が HTML 出力に含まれることを確認する。
+// renderToString ベースで selectedWidgetId を直接 MockAppView に渡し、
+// 生成 HTML のクラス属性を検査する。
+// ============================================================
+
+describe('D5 tablecell 選択ハイライト: outline クラスが td に付与されること', () => {
+  it('D5 mockApp の tablecell に selectedWidgetId を与えると outline-green-600 クラスが出力 HTML に含まれること', async () => {
+    const { applyTimeline } = await import('../model/mockApp')
+    const { D5 } = await import('../data/missions/d5')
+    const MockAppView = (await import('../components/das/MockAppView')).default
+
+    // tick=1 でシャッフル後の状態（D5 の実プレイ状態）を再現する
+    const widgets = applyTimeline(D5.mockApp!, 1)
+
+    // tablecell の id を取得（売上テーブル 1 行目 1 列目）
+    const table = widgets.flatMap((w) => w.children).find((w) => w.type === 'table')
+    const firstRow = table?.children.find((w) => w.type === 'tablerow')
+    const firstCell = firstRow?.children.find((w) => w.type === 'tablecell')
+    expect(firstCell).toBeDefined()
+    const cellId = firstCell!.id
+
+    // selectedWidgetId に tablecell の id を渡して renderToString
+    const html = renderHtml(
+      React.createElement(MockAppView, {
+        app: D5.mockApp!,
+        currentTick: 1,
+        selectedWidgetId: cellId,
+      }),
+    )
+
+    // outline-green-600 が選択セルの <td> クラスに出力されること
+    // （ring-green-500 は border-collapse 下で描画されないため outline に修正済み）
+    expect(html).toContain('outline-green-600')
+    // ring-green-500 は tablecell には付かないこと（div 系ウィジェットのみ許容）
+    // NOTE: テーブル要素以外の ring-green-500 は許容するため tablecell 行に含まれないことを検査する
+    // <td> タグ内に ring-green-500 が含まれないことを確認
+    const tdMatches = [...html.matchAll(/<td[^>]*class="([^"]*)"[^>]*>/g)]
+    for (const match of tdMatches) {
+      const cls = match[1] ?? ''
+      expect(cls, `<td> に ring-green-500 が含まれている: ${cls}`).not.toContain('ring-green-500')
+    }
+  })
+
+  it('D5 mockApp の tablecell に loopScopeId を与えると outline-blue-500 クラスが出力 HTML に含まれること', async () => {
+    const { applyTimeline } = await import('../model/mockApp')
+    const { D5 } = await import('../data/missions/d5')
+    const MockAppView = (await import('../components/das/MockAppView')).default
+
+    const widgets = applyTimeline(D5.mockApp!, 1)
+    const table = widgets.flatMap((w) => w.children).find((w) => w.type === 'table')
+    // tablerow を loopScope に設定する
+    const firstRow = table?.children.find((w) => w.type === 'tablerow')
+    expect(firstRow).toBeDefined()
+    const rowId = firstRow!.id
+
+    const html = renderHtml(
+      React.createElement(MockAppView, {
+        app: D5.mockApp!,
+        currentTick: 1,
+        loopScopeId: rowId,
+      }),
+    )
+
+    // outline-blue-500 が loopScope の <tr> クラスに出力されること
+    expect(html).toContain('outline-blue-500')
+  })
+})
