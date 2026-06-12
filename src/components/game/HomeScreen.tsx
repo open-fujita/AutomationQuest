@@ -17,7 +17,15 @@ export default function HomeScreen() {
   const [newName, setNewName] = useState('')
 
   const completedSet = new Set(completed)
-  const isUnlocked = (idx: number) => idx === 0 || completedSet.has(MISSIONS[idx - 1]?.id)
+  // シリーズ内直列解放判定: 各シリーズ（ds / das）の先頭は常に解放、
+  // 2 件目以降は同一シリーズ内の直前ミッションをクリア済みの場合に解放。
+  // D1 は M1〜M5 の進捗と無関係にいつでもプレイ可能。
+  const seriesOf = (m: (typeof MISSIONS)[number]) => (m.robotType === 'das' ? 'das' : 'ds')
+  const isUnlocked = (m: (typeof MISSIONS)[number]) => {
+    const series = MISSIONS.filter((x) => seriesOf(x) === seriesOf(m))
+    const idx = series.indexOf(m)
+    return idx <= 0 || completedSet.has(series[idx - 1].id)
+  }
   const hasProgress = completed.length > 0 || currentMissionId !== 'm1'
   const resumeTitle = getMission(currentMissionId)?.title ?? ''
 
@@ -129,9 +137,8 @@ export default function HomeScreen() {
                 </div>
                 <div className="space-y-1.5">
                   {MISSIONS.filter((m) => !m.robotType || m.robotType === 'ds').map((m) => {
-                    const i = MISSIONS.indexOf(m)
                     const cleared = completedSet.has(m.id)
-                    const unlocked = isUnlocked(i)
+                    const unlocked = isUnlocked(m)
                     return (
                       <button
                         key={m.id}
@@ -169,9 +176,8 @@ export default function HomeScreen() {
                 </div>
                 <div className="space-y-1.5">
                   {MISSIONS.filter((m) => m.robotType === 'das').map((m) => {
-                    const i = MISSIONS.indexOf(m)
                     const cleared = completedSet.has(m.id)
-                    const unlocked = isUnlocked(i)
+                    const unlocked = isUnlocked(m)
                     return (
                       <button
                         key={m.id}
@@ -203,9 +209,9 @@ export default function HomeScreen() {
             {MISSIONS.filter((m) => m.robotType === 'das').length === 0 &&
               MISSIONS.filter((m) => !m.robotType || m.robotType === 'ds').length === 0 && (
                 <div className="space-y-2">
-                  {MISSIONS.map((m, i) => {
+                  {MISSIONS.map((m) => {
                     const cleared = completedSet.has(m.id)
-                    const unlocked = isUnlocked(i)
+                    const unlocked = isUnlocked(m)
                     return (
                       <button
                         key={m.id}
