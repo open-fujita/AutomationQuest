@@ -237,6 +237,7 @@ export const D4: Mission = {
     )
   },
   glossary: ['dasForEach', 'scopeFinder', 'relativeSelector'],
+  healthFocus: [5, 6],
   site: { id: 'd4-dummy', url: '', title: '', intro: '', singles: [] },
   checks: [],
 }

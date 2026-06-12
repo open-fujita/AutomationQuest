@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useGameStore } from '../../store/gameStore'
 import { MISSIONS, getMission } from '../../data/missions'
+import HealthRulesPanel from './HealthRulesPanel'
 
 export default function HomeScreen() {
   const profile = useGameStore((s) => s.profile)
@@ -15,6 +16,7 @@ export default function HomeScreen() {
   const startMission = useGameStore((s) => s.startMission)
 
   const [newName, setNewName] = useState('')
+  const [showHealthRules, setShowHealthRules] = useState(false)
 
   const completedSet = new Set(completed)
   // シリーズ内直列解放判定: 各シリーズ（ds / das）の先頭は常に解放、
@@ -37,6 +39,14 @@ export default function HomeScreen() {
           <div className="text-[28px] font-bold tracking-wide text-ds-accent">自動化推進室クエスト</div>
           <div className="mt-1 text-[13px] text-ds-textDim">
             BizRobo! Design Studio 研修ラボ — 各部署の相談を、ロボットで解決していこう
+          </div>
+          <div className="mt-3">
+            <button
+              onClick={() => setShowHealthRules(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-ds-border bg-ds-panel px-3 py-1.5 text-[12px] text-ds-textDim hover:border-ds-accent2 hover:text-ds-text"
+            >
+              🩺 健康なロボットのための10か条
+            </button>
           </div>
         </div>
 
@@ -240,6 +250,9 @@ export default function HomeScreen() {
           </div>
         )}
       </div>
+
+      {/* 10か条モーダル */}
+      {showHealthRules && <HealthRulesPanel onClose={() => setShowHealthRules(false)} />}
     </div>
   )
 }

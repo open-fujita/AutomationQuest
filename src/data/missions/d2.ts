@@ -204,6 +204,7 @@ export const D2: Mission = {
     )
   },
   glossary: ['guard', 'guardedChoice', 'timeout', 'locationFound'],
+  healthFocus: [9],
   site: { id: 'd2-dummy', url: '', title: '', intro: '', singles: [] },
   checks: [],
 }

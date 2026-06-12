@@ -21,6 +21,9 @@ import ResultPanel from '../components/game/ResultPanel'
 import Glossary from '../components/game/Glossary'
 import ProgressMap from '../components/game/ProgressMap'
 import HomeScreen from '../components/game/HomeScreen'
+import HealthRulesPanel from '../components/game/HealthRulesPanel'
+
+import { diagnose } from '../engine/healthCheck'
 
 // 緑ロボット（DAS）専用レイアウト
 import DasWorkspaceLayout from '../components/das/DasWorkspaceLayout'
@@ -44,6 +47,7 @@ export default function App() {
 
   const [showGlossary, setShowGlossary] = useState(false)
   const [showProgress, setShowProgress] = useState(false)
+  const [showHealthRules, setShowHealthRules] = useState(false)
   const [designMode, setDesignMode] = useState<'デザイン' | 'デバッグ'>('デザイン')
 
   // ミッション切り替え時にロボットを初期化（seed 適用）。
@@ -57,6 +61,14 @@ export default function App() {
   const validation = useMemo(
     () => validateMission({ robot, sim }, mission.checks),
     [robot, sim, mission],
+  )
+
+  // クリア時の健康診断（result フェーズになったタイミングで実行）
+  const healthFindings = useMemo(
+    () => (phase === 'result' ? diagnose(robot, mission) : []),
+    // phase が result に変わった時点のスナップショット。robot 変更追従は不要。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [phase, mission],
   )
 
   const onRun = () => {
@@ -98,6 +110,7 @@ export default function App() {
         onHome={goHome}
         onOpenGlossary={() => setShowGlossary(true)}
         onOpenProgress={() => setShowProgress(true)}
+        onOpenHealthRules={() => setShowHealthRules(true)}
       />
 
       {showWorkspaceChrome && <MissionBar mission={mission} validation={validation} ran={sim.ran} />}
@@ -166,11 +179,12 @@ export default function App() {
       {/* フェーズ別モーダル */}
       {phase === 'briefing' && <MissionBriefing mission={mission} onAccept={() => setPhase('deduction')} />}
       {phase === 'deduction' && <DeductionPanel mission={mission} onProceed={() => setPhase('build')} />}
-      {phase === 'result' && <ResultPanel mission={mission} sim={sim} hasNext={hasNext} onNext={onNext} />}
+      {phase === 'result' && <ResultPanel mission={mission} sim={sim} hasNext={hasNext} onNext={onNext} healthFindings={healthFindings} />}
 
       {/* 独立モーダル */}
       {showGlossary && <Glossary onClose={() => setShowGlossary(false)} />}
       {showProgress && <ProgressMap onClose={() => setShowProgress(false)} onJump={(id) => setMission(id)} />}
+      {showHealthRules && <HealthRulesPanel onClose={() => setShowHealthRules(false)} />}
     </div>
   )
 }

@@ -28,6 +28,9 @@ import DeductionPanel from '../game/DeductionPanel'
 import ResultPanel from '../game/ResultPanel'
 import Glossary from '../game/Glossary'
 import ProgressMap from '../game/ProgressMap'
+import HealthRulesPanel from '../game/HealthRulesPanel'
+
+import { diagnose } from '../../engine/healthCheck'
 
 import DasWorkflowView from './DasWorkflowView'
 import RecorderView from './RecorderView'
@@ -55,6 +58,7 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
 
   const [showGlossary, setShowGlossary] = useState(false)
   const [showProgress, setShowProgress] = useState(false)
+  const [showHealthRules, setShowHealthRules] = useState(false)
   // 現在の tick（RecorderView の模擬アプリ描画に使う）
   const [currentTick, setCurrentTick] = useState(0)
 
@@ -77,6 +81,13 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
     }
     return validateDasMission({ robot, sim }, mission.dasChecks)
   }, [robot, sim, mission])
+
+  // クリア時の健康診断（result フェーズになったタイミングで実行）
+  const healthFindings = useMemo(
+    () => (phase === 'result' ? diagnose(robot, mission) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [phase, mission],
+  )
 
   // 実行ボタン
   const onRun = () => {
@@ -119,6 +130,7 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
         onHome={goHome}
         onOpenGlossary={() => setShowGlossary(true)}
         onOpenProgress={() => setShowProgress(true)}
+        onOpenHealthRules={() => setShowHealthRules(true)}
       />
 
       {showWorkspaceChrome && (
@@ -206,6 +218,7 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
           sim={dasSimForResult}
           hasNext={hasNext}
           onNext={onNext}
+          healthFindings={healthFindings}
         />
       )}
 
@@ -217,6 +230,7 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
           onJump={(id) => setMission(id)}
         />
       )}
+      {showHealthRules && <HealthRulesPanel onClose={() => setShowHealthRules(false)} />}
     </div>
   )
 }

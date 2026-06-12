@@ -111,4 +111,7 @@ export interface Mission {
 
   /** 緑ロボット用: 推奨ステップ構成（UI のガイド表示に使う） */
   dasSuggested?: DasSuggestedConfig
+
+  /** 健康なロボットの10か条: このミッションでフォーカスする条の番号（1〜10） */
+  healthFocus?: number[]
 }

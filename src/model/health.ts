@@ -1,60 +1,33 @@
 // ============================================================
-// ロボット健康度スコア（6 軸）
-// bizrobo-analyzer-byDevin/scripts/SCHEMA.md・weights.json に準拠。
-// 初版（M1・M2）では型と表示枠のみ用意し、判定ロジックは M7 で拡張する。
+// ロボット健康度 — 「健康なロボットのための10か条」に基づく診断型
+// （旧 6 軸スコアを置換。旧コードは git 履歴で保全）
 // ============================================================
 
-export type ScoreAxis =
-  | 'security' // セキュリティ
-  | 'maintainability' // 保守性
-  | 'robustness' // 堅牢性
-  | 'compatibility' // 互換性
-  | 'dependency' // 依存健全性
-  | 'scale' // 規模
+/** 診断結果のステータス */
+export type HealthStatus = 'good' | 'improve'
 
-export const AXIS_LABELS: Record<ScoreAxis, string> = {
-  security: 'セキュリティ',
-  maintainability: '保守性',
-  robustness: '堅牢性',
-  compatibility: '互換性',
-  dependency: '依存健全性',
-  scale: '規模',
+/** 1 つの条に対する診断結果 */
+export interface HealthFinding {
+  /** 条の ID（'rule-1' 〜 'rule-10'） */
+  ruleId: string
+  /** 条の番号（1〜10） */
+  ruleNumber: number
+  /** 判定結果 */
+  status: HealthStatus
+  /** プレイヤー向けメッセージ（前向きなトーン） */
+  message: string
 }
 
-/** 各軸の重み（weights.json と一致） */
-export const AXIS_WEIGHTS: Record<ScoreAxis, number> = {
-  security: 0.25,
-  maintainability: 0.15,
-  robustness: 0.2,
-  compatibility: 0.2,
-  dependency: 0.1,
-  scale: 0.1,
-}
-
-export interface AxisScore {
-  score: number
-  weight: number
-  deductions: string[]
-}
-
-export interface HealthScore {
-  overall: number
-  axes: Record<ScoreAxis, AxisScore>
-}
-
-export type HealthGrade = 'A' | 'B' | 'C' | 'D'
-
-/** スコア → A〜D 判定（SCHEMA.md の基準） */
-export function gradeOf(score: number): HealthGrade {
-  if (score >= 80) return 'A'
-  if (score >= 60) return 'B'
-  if (score >= 40) return 'C'
-  return 'D'
-}
-
-export const GRADE_MEANING: Record<HealthGrade, string> = {
-  A: '健全（問題なし）',
-  B: '要注意（中優先問題に対応推奨）',
-  C: '要改善（近期対応が必要）',
-  D: '要緊急対応（リスクが高い）',
+/** 10 か条の 1 つ（定義データ側で使う） */
+export interface HealthRule {
+  /** 条の ID（'rule-1' 〜 'rule-10'） */
+  id: string
+  /** 条の番号（1〜10） */
+  number: number
+  /** タイトル（例: 「ロボットのサイズはコンパクトに保つこと」） */
+  title: string
+  /** 短い解説（PDF の括弧内を自分の言葉で簡潔に） */
+  description: string
+  /** 自動診断可能か */
+  diagnosable: boolean
 }

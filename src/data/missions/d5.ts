@@ -221,6 +221,7 @@ export const D5: Mission = {
     )
   },
   glossary: ['componentFinder', 'cssSelector', 'finder4layers'],
+  healthFocus: [10],
   site: { id: 'd5-dummy', url: '', title: '', intro: '', singles: [] },
   checks: [],
 }

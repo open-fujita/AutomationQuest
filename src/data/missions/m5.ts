@@ -106,4 +106,5 @@ export const M5: Mission = {
     )
   },
   glossary: ['type', 'variable', 'attribute', 'dataState'],
+  healthFocus: [10],
 }

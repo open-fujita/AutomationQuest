@@ -5,9 +5,10 @@ interface ToolbarProps {
   onHome: () => void
   onOpenGlossary: () => void
   onOpenProgress: () => void
+  onOpenHealthRules: () => void
 }
 
-export default function Toolbar({ onRun, onHome, onOpenGlossary, onOpenProgress }: ToolbarProps) {
+export default function Toolbar({ onRun, onHome, onOpenGlossary, onOpenProgress, onOpenHealthRules }: ToolbarProps) {
   const [saved, setSaved] = useState(false)
 
   const save = () => {
@@ -46,6 +47,9 @@ export default function Toolbar({ onRun, onHome, onOpenGlossary, onOpenProgress 
         </button>
         <button onClick={onOpenGlossary} className="rounded px-2 py-1 text-[12px] text-ds-textDim hover:text-ds-text">
           📖 用語集
+        </button>
+        <button onClick={onOpenHealthRules} className="rounded px-2 py-1 text-[12px] text-ds-textDim hover:text-ds-text">
+          🩺 10か条
         </button>
       </div>
     </div>

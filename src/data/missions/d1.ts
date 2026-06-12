@@ -192,6 +192,7 @@ export const D1: Mission = {
   },
   // 解禁用語
   glossary: ['greenRobot', 'recorderView', 'dasClick', 'dasExtract'],
+  healthFocus: [1, 3],
   // 青ロボット用フィールド（型の都合でダミー必須）
   site: {
     id: 'd1-dummy',

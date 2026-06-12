@@ -86,4 +86,5 @@ export const M1: Mission = {
     )
   },
   glossary: ['robot', 'step', 'actionStep', 'loadPage', 'extract', 'variable', 'type', 'dataState', 'endStep'],
+  healthFocus: [1, 3],
 }

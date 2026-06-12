@@ -249,6 +249,12 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     en: 'CSS-like Selector',
     desc: 'ファインダーで要素を特定する記法。`elementName[attr="value"]` の形式で属性を指定する。演算子: `=`（完全一致）/ `^=`（前方一致）/ `$=`（後方一致）/ `*=`（部分一致）/ `>`（直接の子）/ `:nth-child(n)`（位置）。複数属性 AND: `button[visible="true"][name^="Save"]`。',
   },
+  healthyRobot: {
+    key: 'healthyRobot',
+    term: '健康なロボット',
+    en: 'Healthy Robot',
+    desc: 'RPA Technologies が提唱する「健康なロボットのための10か条」に基づく設計基準を満たしたロボット。コンパクトさ・命名・データ整理・例外処理・環境値の外部化などの観点で保守性と堅牢性を高めたロボットのこと。',
+  },
   finder4layers: {
     key: 'finder4layers',
     term: 'ファインダー（4 階層）',

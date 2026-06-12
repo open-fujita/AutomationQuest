@@ -1395,3 +1395,617 @@ interface FinderFormProps {
 3. **FlowPoint の描画**: SVG circle vs div+rounded-full のどちらでも可。div が軽量なので div を既定とする
 
 ---
+
+## 健康なロボットの10か条 統合設計（2026-06-13 追補）
+
+### 設計方針
+
+プレイヤーが「健康なロボット」を自然に意識できるよう、2 つの接触面を設ける: (A) ミッションクリア時に表示される「ロボット健康診断」（構造解析による自動判定）、(B) いつでも参照できる「健康なロボットの10か条」リファレンスモーダル。10 か条の定義データを `src/data/healthRules.ts` に一元管理し、診断エンジン `src/engine/healthCheck.ts` は Robot（青）と DasRobot（緑）の両モデルに対応する純粋関数として実装する。既存の `src/model/health.ts`（旧 6 軸スコア）は本設計で**置換**する（後述の判断理由参照）。既存の ResultPanel・Toolbar・HomeScreen への変更は最小限に留め、新規コンポーネントに診断表示を閉じ込める。
+
+---
+
+### アーキテクチャ判断
+
+#### 検討した選択肢 H-A: 旧 health.ts（6 軸スコア）の扱い
+
+| 案 | メリット | デメリット |
+|---|---|---|
+| **案 H-A-1: 共存（6 軸スコアと 10 か条を並列に持つ）** | 既存コードを一切変更しない。将来 6 軸スコアを復活させたいとき即使える | 2 つの「健康度」概念が並立し、プレイヤーにとって混乱する。health.ts は現在どこからも import されておらず死コードのまま残る。型名が被りやすい（`HealthScore` vs `HealthFinding`） |
+| **案 H-A-2: 置換（health.ts を 10 か条のデータ型ファイルに書き換え）（採用）** | 「健康なロボット」の概念が 10 か条に一本化されプレイヤーに明快。dead code を解消。将来 6 軸が必要になれば git 履歴から復旧可能 | health.ts の既存コードを全削除して書き換える。ただし現在参照箇所ゼロのため影響なし |
+
+**採用: 案 H-A-2（置換）**。理由: `src/model/health.ts` は `Grep` で確認した結果、プロジェクト内のどのファイルからも import されていない（型定義のみで判定ロジック未実装、コメントに「M7 で拡張」とあるが M7 は存在しない）。死コードを残すより、10 か条のデータ型ファイルとして再利用するほうが、ファイル名の意味的一貫性（`health.ts` = ロボットの健康）と dead code 削減の両方を達成する。6 軸スコアのコードは git 履歴で保全されるため不可逆リスクは無い。
+
+#### 検討した選択肢 H-B: 診断結果の表示場所
+
+| 案 | メリット | デメリット |
+|---|---|---|
+| **案 H-B-1: ResultPanel 内にインライン表示** | ResultPanel 1 ファイルの変更で完結。モーダル追加なし | ResultPanel がすでに「効果測定」「気づき」「用語」で縦に長い。診断セクションを追加するとスクロール量が増え、クリアの達成感が薄れる |
+| **案 H-B-2: ResultPanel 内に折りたたみセクションとして表示（採用）** | クリア直後は折りたたみ表示（ヘッダ + サマリ 1 行のみ）で達成感を邪魔しない。展開するとフォーカス条 + 検出結果の全容が見える | ResultPanel に HealthDiagnosis サブコンポーネントを挿入する変更が必要。ただし ResultPanel の既存構造は維持 |
+
+**採用: 案 H-B-2（折りたたみセクション）**。理由: 教材であっても、クリア直後の「やった！」感は阻害したくない。診断は「もっと知りたい人が開く」位置づけにし、折りたたみの初期状態は**展開**（教育目的で見せたいため）とするが、ユーザーが閉じることも可能にする。フォーカス条を上位に強調し、前向きなトーンでアドバイスを表示する。
+
+---
+
+### 変更コンポーネント
+
+#### 新規作成
+
+- `src/data/healthRules.ts` — 10 か条の定義データ（id / 番号 / タイトル / 短い解説 / 出典 URL）+ ミッション別フォーカス条マッピング
+- `src/engine/healthCheck.ts` — `diagnose()` 関数: Robot | DasRobot とミッション情報を受け取り、構造解析で該当条を判定して `HealthFinding[]` を返す純粋関数
+- `src/components/game/HealthDiagnosis.tsx` — ResultPanel 内に埋め込む「ロボット健康診断」折りたたみセクション
+- `src/components/game/HealthRulesPanel.tsx` — 10 か条リファレンスモーダル（Toolbar・HomeScreen から開ける）
+
+#### 変更
+
+- `src/model/health.ts` — **全面書き換え**: 旧 6 軸スコアの型をすべて削除し、`HealthRule` / `HealthFinding` / `HealthStatus` の型定義ファイルに置換
+- `src/model/mission.ts` — optional フィールド `healthFocus?: number[]` を `Mission` に追加（フォーカスする条の番号配列）
+- `src/data/missions/m1.ts〜m5.ts` — 各ミッションに `healthFocus` を追加（後述の割当案参照）
+- `src/data/missions/d1.ts〜d5.ts` — 各ミッションに `healthFocus` を追加（後述の割当案参照）
+- `src/components/game/ResultPanel.tsx` — `HealthDiagnosis` コンポーネントを「気づき・成果」セクションの後に挿入。props に `robot | dasRobot` と `mission` を追加
+- `src/components/ds/Toolbar.tsx` — 「10 か条」ボタンを追加（`onOpenHealthRules` callback 追加）
+- `src/components/game/HomeScreen.tsx` — 相談ボード上部に「10 か条を見る」ボタンを追加
+- `src/app/App.tsx` — `showHealthRules` state と `HealthRulesPanel` モーダルの描画を追加
+- `src/components/das/DasWorkspaceLayout.tsx` — 同上（DAS 側のレイアウトにも `HealthRulesPanel` モーダルの描画を追加）
+
+#### 削除
+
+- なし（health.ts は物理削除せず内容を書き換え。旧コードは git 履歴で保全）
+
+---
+
+### データ構造変更
+
+#### src/model/health.ts（全面書き換え）
+
+```typescript
+// ============================================================
+// ロボット健康度 — 「健康なロボットのための10か条」に基づく診断型
+// （旧 6 軸スコアを置換。旧コードは git 履歴で保全）
+// ============================================================
+
+/** 診断結果のステータス */
+export type HealthStatus = 'good' | 'improve'
+
+/** 1 つの条に対する診断結果 */
+export interface HealthFinding {
+  /** 条の ID（'rule-1' 〜 'rule-10'） */
+  ruleId: string
+  /** 条の番号（1〜10） */
+  ruleNumber: number
+  /** 判定結果 */
+  status: HealthStatus
+  /** プレイヤー向けメッセージ（前向きなトーン） */
+  message: string
+}
+
+/** 10 か条の 1 つ（定義データ側で使う） */
+export interface HealthRule {
+  /** 条の ID（'rule-1' 〜 'rule-10'） */
+  id: string
+  /** 条の番号（1〜10） */
+  number: number
+  /** タイトル（例: 「ロボットのサイズはコンパクトに保つこと」） */
+  title: string
+  /** 短い解説（PDF の括弧内を自分の言葉で簡潔に） */
+  description: string
+  /** 自動診断可能か */
+  diagnosable: boolean
+}
+```
+
+#### src/data/healthRules.ts（新規）
+
+```typescript
+import type { HealthRule } from '../model/health'
+
+/** 出典 URL（リファレンスパネルに表示） */
+export const HEALTH_RULES_SOURCE_URL =
+  'https://rpa-technologies.com/catalog/10RulesOfHealthyRobots.pdf'
+
+export const HEALTH_RULES_SOURCE_LABEL =
+  'RPA Technologies【入門】V1.0.0 2020.02.20「健康なロボットのための10か条」'
+
+/** 10 か条の定義（全条） */
+export const HEALTH_RULES: HealthRule[] = [
+  {
+    id: 'rule-1',
+    number: 1,
+    title: 'ロボットのサイズはコンパクトに保つこと',
+    description:
+      'ステップ数は 100〜200 以内を目安に。開いたとき全体が見渡せる範囲にまとめましょう。',
+    diagnosable: true,
+  },
+  {
+    id: 'rule-2',
+    number: 2,
+    title: '単一の処理に集中すること',
+    description:
+      '1 つのロボットには 1 つの役割だけ。処理を単純に分解して順次組み合わせれば、エラー時の影響も小さくなります。',
+    diagnosable: false,
+  },
+  {
+    id: 'rule-3',
+    number: 3,
+    title: 'ロボットのフローに業務処理の骨格が明確に表れていること',
+    description:
+      '初見でも業務内容がわかるステップ名を付け、処理の塊をグループ化しましょう。',
+    diagnosable: true,
+  },
+  {
+    id: 'rule-4',
+    number: 4,
+    title: '補助処理と本処理を明確に区別すること',
+    description:
+      '前処理と本処理を分けて配置し、エラーの原因がデータかプロセスか判別しやすくしましょう。',
+    diagnosable: false,
+  },
+  {
+    id: 'rule-5',
+    number: 5,
+    title: '同一・類似の処理を複数存在させないこと',
+    description:
+      '繰り返す手続きは Snippet 化し、繰り返し使う値は変数で一元管理しましょう。',
+    diagnosable: true,
+  },
+  {
+    id: 'rule-6',
+    number: 6,
+    title: '用途や内容ごとにデータを整理整頓すること',
+    description:
+      '入力・出力・一時データを Type で整理。手順を作る前にデータの棚卸しをしましょう。',
+    diagnosable: true,
+  },
+  {
+    id: 'rule-7',
+    number: 7,
+    title: '処理内容の見通しをよくするための案内・コメントを適所に設置すること',
+    description:
+      'Group で区切りを示し、業務内容を示すコメントを残しましょう。簡易業務マニュアルにもなります。',
+    diagnosable: false,
+  },
+  {
+    id: 'rule-8',
+    number: 8,
+    title: 'ロボット実行時の処理経路がトレースできるように適度にログ出力を設定すること',
+    description:
+      'Write Log でパンくずを残し、データのキー情報をログに記録しましょう。',
+    diagnosable: true,  // 緑ロボのみ: ログ出力ステップの有無で加点
+  },
+  {
+    id: 'rule-9',
+    number: 9,
+    title: '例外処理はログと通知を重視し、自動回復は最低限とすること',
+    description:
+      '例外を確実にとらえてログ・通知を出し、自動回復ロジックは極力含めないようにしましょう。',
+    diagnosable: true,
+  },
+  {
+    id: 'rule-10',
+    number: 10,
+    title: '環境変数値はロボット内に組み込まず、外部情報の読み込みで切り替えること',
+    description:
+      'ファイルパスや URL、アカウント情報は外部設定で管理。直書きするとテストの品質担保が無効になります。',
+    diagnosable: true,
+  },
+]
+
+/**
+ * ミッション ID → フォーカスする条番号のマッピング。
+ * Mission 型の healthFocus フィールドに設定する値の一元管理。
+ * 各ミッションの定義ファイル（m1.ts 等）で直接 healthFocus: [6] と書いてもよいが、
+ * 割当ロジックを見渡しやすくするためここに集約する。
+ */
+export const MISSION_HEALTH_FOCUS: Record<string, number[]> = {
+  // ---- 青ロボット（M1〜M5）----
+  m1: [1, 3],     // M1: ステップ数コンパクト＋ステップ名を付けよう
+  m2: [6],        // M2: Type 整理（複合型を定義してデータを整理）
+  m3: [3, 5],     // M3: 業務の骨格＋条件分岐による重複排除
+  m4: [1],        // M4: 全件取得でもコンパクトに
+  m5: [10],       // M5: 入力変数を使い直書き禁止
+
+  // ---- 緑ロボット（D1〜D5）----
+  d1: [1, 3],     // D1: 基本 3 ステップで全体俯瞰＋名前付け
+  d2: [9],        // D2: ガード＋Timeout による例外系の設計
+  d3: [9],        // D3: 不測の割り込み＝例外として捉える
+  d4: [5, 6],     // D4: For Each で重複排除＋データ整理
+  d5: [10],       // D5: セレクタ＝環境依存値を外部化する思考
+}
+```
+
+#### src/model/mission.ts への追加
+
+```typescript
+export interface Mission {
+  // ... 既存フィールドは不変 ...
+
+  /** 健康なロボットの10か条: このミッションでフォーカスする条の番号（1〜10） */
+  healthFocus?: number[]
+}
+```
+
+#### スキーマ変更 / マイグレーション
+
+- localStorage 変更なし（`healthFocus` はミッション定義側の静的データであり、プレイヤー進捗ストアには影響しない）
+- 「体験済み」バッジの導出は `completedMissions` (既存) × `MISSION_HEALTH_FOCUS` のランタイム計算で行い、gameStore に新フィールドを追加しない
+
+---
+
+### 診断エンジン: src/engine/healthCheck.ts
+
+#### 公開 API
+
+```typescript
+import type { Robot } from '../model/robot'
+import type { DasRobot } from '../model/dasRobot'
+import type { Mission } from '../model/mission'
+import type { HealthFinding } from '../model/health'
+
+/**
+ * プレイヤーが組んだロボットを構造解析し、該当する条を判定する。
+ * 純粋関数。Robot（青）と DasRobot（緑）の両方を受け取れる。
+ *
+ * @param robot  - プレイヤーが組んだロボット（青 or 緑）
+ * @param mission - 現在のミッション（robotType と healthFocus を参照）
+ * @returns HealthFinding[] - 判定対象の条ごとの結果（フォーカス条 + 検出された条）
+ */
+export function diagnose(
+  robot: Robot | DasRobot,
+  mission: Mission,
+): HealthFinding[]
+```
+
+#### 判定ロジック（条ごと）
+
+青ロボット（`mission.robotType !== 'das'`）の場合:
+
+| 条 | 判定方法 | good 条件 | improve 条件 | メッセージ例 |
+|---|---|---|---|---|
+| **第1条** | `robot.steps.length` を計測 | ≤ 12 ステップ（教材規模の閾値） | > 12 ステップ | good: 「コンパクトにまとまっていますね！」 / improve: 「ステップ数が多くなっています。分割を検討しましょう」 |
+| **第3条** | 全ステップの `name` を検査。`isAnonymous(step)` が true のステップ数を計測 | 無名ステップ 0 件 | 無名ステップ 1 件以上 | good: 「すべてのステップに名前が付いています！」 / improve: 「"(名前がありません)" のステップがあります。初見でも業務がわかる名前を付けましょう」 |
+| **第5条** | 同一 `action.type` + 同一主要設定（LoadPage: 同一 URL / ExtractText: 同一 targetId / Click: 同一 targetId）のステップペアを検出 | 重複ペア 0 | 重複ペア 1 以上 | good: 「同じ処理の重複はありません！」 / improve: 「似た処理が複数あります。繰り返しや変数で一本化できないか検討しましょう」 |
+| **第6条** | `robot.types.length > 0` かつ `robot.variables.length > 0`（タイプと変数を定義してデータ整理しているか） | types ≥ 1 かつ variables ≥ 1 | types = 0 または variables = 0 | good: 「タイプと変数でデータが整理されています！」 / improve: 「データの入れ物（タイプ・変数）を定義して整理しましょう」 |
+| **第10条** | M5 のような入力変数ミッション: `robot.variables.some(v => v.role === 'input')` かつ、action 内に `fromVariable` を使っている EnterText が存在する | 入力変数あり + 変数参照あり | 入力変数があるのに text に直書き | good: 「入力変数を活用して環境値を外部化しています！」 / improve: 「URL やパスワードが直書きされています。入力変数を使って外部から渡しましょう」 |
+
+緑ロボット（`mission.robotType === 'das'`）の場合:
+
+| 条 | 判定方法 | good 条件 | improve 条件 | メッセージ例 |
+|---|---|---|---|---|
+| **第1条** | `flattenDasSteps(robot.steps).length` で全ステップ数（ネスト含む再帰カウント）を計測 | ≤ 12 | > 12 | （青と同じトーン） |
+| **第3条** | `dasIsAnonymous(step)` が true のステップ数を計測（DAS_ANON_STEP_NAME との比較） | 無名 0 件 | 無名 1 件以上 | （青と同じトーン） |
+| **第5条** | 同一 `action.type` + 同一 `finder.selector` のステップペアを検出（ネスト含む再帰） | 重複 0 | 重複 1 以上 | （青と同じトーン） |
+| **第6条** | `robot.types.length > 0` かつ `robot.variables.length > 0` | 同上 | 同上 | （青と同じトーン） |
+| **第8条** | ログ出力ステップ（DAS カタログの「ログ出力」= 未実装だが、将来を見据え `action.type === 'Group'` で名前に「ログ」を含むグループの有無）で加点式判定。**現実装では判定対象外**（DAS にログ出力ステップが未実装のため、diagnose は第 8 条を返さない） | — | — | — |
+| **第9条** | ガードチョイスに `timeout` ガードがあるか / `Throw` ステップがあるか で判定。ガードチョイスがあるのに timeout 無し → improve | timeout あり or Throw あり | ガードチョイスあり & timeout 無し & Throw 無し | good: 「タイムアウトで例外をしっかり捕捉しています！」 / improve: 「ガードチョイスに時間経過（Timeout）がありません。例外として捉えましょう」 |
+| **第10条** | D 系で変数を扱うミッション（D5 等）: EnterText の `fromVariable` 使用 or ExtractValue の `toVariable` 使用で入出力変数を活用しているか。固定値直書き（URL 等）の検出 | 変数参照あり | 固定値直書き | （青と同じトーン） |
+
+**判定対象の条の決定**: `diagnose()` は以下の条のみ `HealthFinding` を返す:
+1. `mission.healthFocus` に含まれる条（フォーカス条、最優先で表示）
+2. 上記以外で、自動判定が可能（`diagnosable: true`）かつ判定の前提条件が成立する条（例: 第 9 条はガードチョイスが存在する場合のみ判定対象）
+
+判定不能な条（第 2/4/7/8 条、および前提条件が成立しない条）は `HealthFinding` に含めない。リファレンスパネルには 10 条すべて表示する。
+
+---
+
+### ResultPanel への「ロボット健康診断」セクション
+
+#### HealthDiagnosis コンポーネント（src/components/game/HealthDiagnosis.tsx）
+
+```typescript
+interface HealthDiagnosisProps {
+  findings: HealthFinding[]
+  /** フォーカスする条の番号（Mission.healthFocus） */
+  focusRules: number[]
+}
+```
+
+**表示構成**:
+
+```
+┌──────────────────────────────────────────────┐
+│ 🩺 ロボット健康診断                    [▼/▲] │  ← 折りたたみヘッダ
+├──────────────────────────────────────────────┤
+│                                              │
+│ 【今回のフォーカス】                         │
+│ ○ 第1条: ロボットのサイズはコンパクトに...    │  ← フォーカス条（強調表示）
+│   → コンパクトにまとまっていますね！          │     bg-green-500/10 or bg-amber-500/10
+│                                              │
+│ ○ 第3条: ロボットのフローに業務処理の...      │
+│   → すべてのステップに名前が付いています！    │
+│                                              │
+│ 【その他の検出結果】                         │  ← フォーカス以外で検出された条
+│ ○ 第6条: 用途や内容ごとにデータを...          │
+│   → タイプと変数でデータが整理されています！  │
+│                                              │
+└──────────────────────────────────────────────┘
+```
+
+- `○` は `status === 'good'` なら緑（`text-green-400`）、`status === 'improve'` なら黄（`text-amber-400`）
+- フォーカス条は `border-l-2 border-ds-accent` で左線強調
+- 診断結果が空（判定対象条が無い）の場合はセクション自体を非表示
+- 初期状態は展開（`useState(true)`）。ユーザーが折りたたみ可能
+
+#### ResultPanel への挿入位置
+
+ResultPanel の既存構造:
+1. クリアヘッダ
+2. 効果測定（手作業 → ロボット）
+3. 気づき・成果（reveal）
+4. **ここに HealthDiagnosis を挿入**
+5. 解禁された用語
+6. 次の相談ボタン
+
+#### ResultPanel の props 変更
+
+```typescript
+// 既存
+interface Props {
+  mission: Mission
+  sim: SimResult
+  hasNext: boolean
+  onNext: () => void
+}
+
+// 変更後
+interface Props {
+  mission: Mission
+  sim: SimResult
+  hasNext: boolean
+  onNext: () => void
+  /** 健康診断の結果（diagnose() の戻り値） */
+  healthFindings?: HealthFinding[]
+}
+```
+
+`healthFindings` は optional。呼び出し元（App.tsx / DasWorkspaceLayout.tsx）で `diagnose()` を呼んで渡す。ResultPanel 側は渡されなければ診断セクションを非表示にする。
+
+---
+
+### 10 か条モーダル: HealthRulesPanel（src/components/game/HealthRulesPanel.tsx）
+
+#### 構成
+
+```typescript
+interface HealthRulesPanelProps {
+  onClose: () => void
+  /** クリア済みミッション ID 配列（体験済みバッジ導出に使用） */
+  completedMissions: string[]
+}
+```
+
+**表示構成**:
+
+```
+┌──────────────────────────────────────────────────────┐
+│ 健康なロボットのための10か条                    [✕]  │
+├──────────────────────────────────────────────────────┤
+│                                                      │
+│  1. ロボットのサイズはコンパクトに保つこと  [体験済み] │
+│     ステップ数は 100〜200 以内を目安に。              │
+│     開いたとき全体が見渡せる範囲に...                 │
+│                                                      │
+│  2. 単一の処理に集中すること                          │
+│     1 つのロボットには 1 つの役割だけ...              │
+│                                                      │
+│  ... （10 条すべて）                                 │
+│                                                      │
+│  ────────────────────────────────────────────        │
+│  出典: RPA Technologies【入門】V1.0.0 2020.02.20     │
+│  📎 PDFを見る                                        │
+│                                                      │
+└──────────────────────────────────────────────────────┘
+```
+
+- 10 条すべてのタイトル + 短い解説を表示
+- 「体験済み」バッジ: `completedMissions` に含まれるミッション ID の `MISSION_HEALTH_FOCUS` を逆引きし、体験済みの条番号を導出。該当条に `bg-ds-accent/10 text-ds-accent text-[10px] rounded px-1.5` のバッジを表示
+- 出典 URL: `HEALTH_RULES_SOURCE_URL` へのリンクを末尾に表示
+- Modal コンポーネント（既存）を使用。`maxWidth="max-w-lg"`
+
+#### 体験済みバッジの導出ロジック
+
+```typescript
+import { MISSION_HEALTH_FOCUS } from '../../data/healthRules'
+
+function getExperiencedRules(completedMissions: string[]): Set<number> {
+  const experienced = new Set<number>()
+  for (const missionId of completedMissions) {
+    const focus = MISSION_HEALTH_FOCUS[missionId]
+    if (focus) focus.forEach((n) => experienced.add(n))
+  }
+  return experienced
+}
+```
+
+この導出は HealthRulesPanel 内のローカル計算で行い、gameStore に新しいフィールドを追加しない。`completedMissions` は既存の `useGameStore((s) => s.completedMissions)` からそのまま取得可能。
+
+---
+
+### 導線（Toolbar・HomeScreen からの開き方）
+
+#### Toolbar の変更
+
+```typescript
+// 既存 props に追加
+interface ToolbarProps {
+  onRun: () => void
+  onHome: () => void
+  onOpenGlossary: () => void
+  onOpenProgress: () => void
+  onOpenHealthRules: () => void  // 追加
+}
+```
+
+Toolbar の右側ボタン群に「10か条」ボタンを追加:
+
+```tsx
+<button onClick={onOpenHealthRules} className="rounded px-2 py-1 text-[12px] text-ds-textDim hover:text-ds-text">
+  🩺 10か条
+</button>
+```
+
+#### HomeScreen の変更
+
+相談ボード上部（「ようこそ、○○さん」のすぐ下、「続きから」「最初から」ボタンの隣）に「10か条を見る」ボタンを追加:
+
+```tsx
+<button
+  onClick={() => setShowHealthRules(true)}
+  className="rounded-lg border border-ds-border bg-ds-bg px-4 py-2 text-[13px] text-ds-text hover:border-ds-accent2"
+>
+  🩺 健康なロボットの10か条
+</button>
+```
+
+HomeScreen 内に `useState` で `showHealthRules` を管理し、`HealthRulesPanel` をレンダリング。
+
+#### App.tsx / DasWorkspaceLayout.tsx の変更
+
+両方に `showHealthRules` state を追加し、Toolbar の `onOpenHealthRules` → `setShowHealthRules(true)` → `HealthRulesPanel` をレンダリング。既存の `showGlossary` / `showProgress` と同じパターン。
+
+---
+
+### ミッション別 healthFocus 割当案
+
+| ミッション | healthFocus | フォーカスの理由 |
+|---|---|---|
+| **M1** | `[1, 3]` | 初めてのロボット: ステップ数が少なくコンパクトに保つ体験 + ステップ名の重要性を意識 |
+| **M2** | `[6]` | 複合型（Type）の定義でデータを整理する体験 |
+| **M3** | `[3, 5]` | 条件分岐で業務フローの骨格を表現 + 同一抽出処理の重複を条件で整理 |
+| **M4** | `[1]` | 全件取得（ForEach）でもロボットをコンパクトに保てることを確認 |
+| **M5** | `[10]` | 入力変数で URL/パスワードを外部化（直書き禁止の体験） |
+| **D1** | `[1, 3]` | 緑ロボ初回: 基本 3 ステップのコンパクトさ + 命名 |
+| **D2** | `[9]` | ガードチョイス＋Timeout で例外系を設計する体験 |
+| **D3** | `[9]` | Application Found ガードで不測の割り込みを例外として捉える |
+| **D4** | `[5, 6]` | For Each で繰り返しを一元化（重複排除）+ スコープファインダーでデータ整理 |
+| **D5** | `[10]` | 座標固定 vs 属性セレクタ = 環境依存値の外部化思考 |
+
+---
+
+### gameStore への変更
+
+**変更なし**。`completedMissions` は既存フィールドをそのまま使用。体験済みバッジの導出は `MISSION_HEALTH_FOCUS` とのランタイム join で行い、gameStore に新しいフィールドを追加しない。localStorage スキーマも不変。
+
+---
+
+### 影響範囲分析
+
+| 領域 | 影響内容 | リスク |
+|---|---|---|
+| `src/model/health.ts` | 全面書き換え（旧 6 軸 → 10 か条の型）。現在参照箇所ゼロのため他コードへの影響なし | Low |
+| `src/model/mission.ts` | `healthFocus?: number[]` を optional 追加。既存コンパイル不変 | Low |
+| `src/data/missions/m1〜m5.ts, d1〜d5.ts` | 各ファイルに `healthFocus: [N]` を 1 行追加 | Low |
+| `src/components/game/ResultPanel.tsx` | `healthFindings` optional prop 追加 + HealthDiagnosis の挿入（~5 行追加）。既存構造は維持 | Low |
+| `src/components/ds/Toolbar.tsx` | `onOpenHealthRules` prop 追加 + ボタン 1 個追加 | Low |
+| `src/components/game/HomeScreen.tsx` | 「10か条を見る」ボタン追加 + `showHealthRules` state | Low |
+| `src/app/App.tsx` | `showHealthRules` state + HealthRulesPanel モーダル描画 + Toolbar prop 追加 + `diagnose()` 呼び出し + ResultPanel に findings 渡す | Med |
+| `src/components/das/DasWorkspaceLayout.tsx` | 同上（DAS 側の並行変更） | Med |
+| `src/engine/healthCheck.ts`（新規） | 診断ロジック。Robot / DasRobot 両対応の構造解析。`stepStatus.ts` / `dasStepStatus.ts` の判定関数を内部利用 | Med |
+| `src/data/healthRules.ts`（新規） | 10 か条の静的データ。変更頻度は低い | Low |
+| `src/components/game/HealthDiagnosis.tsx`（新規） | 診断表示 UI。ResultPanel 内のサブコンポーネント | Low |
+| `src/components/game/HealthRulesPanel.tsx`（新規） | リファレンスモーダル。Modal コンポーネントの利用 | Low |
+| 既存 M1〜M5 / D1〜D5 の動作 | healthFocus は optional で既存テストに影響なし。diagnose は ResultPanel 表示のみ（合否判定に影響しない） | Low |
+| gameStore / localStorage | **変更なし** | Low |
+
+---
+
+### 非機能観点
+
+#### パフォーマンス影響
+
+- `diagnose()` はミッションクリア時（`phase === 'result'`）にのみ呼ばれる（ビルド中の毎 render では呼ばない）。ステップ数最大 20 程度の O(n) 走査であり無視できる
+- HealthRulesPanel の体験済みバッジ導出は `completedMissions`（最大 10 件） × `MISSION_HEALTH_FOCUS`（10 エントリ）の O(n*m) で瞬時
+
+#### セキュリティ影響
+
+- 外部通信なし。10 か条の出典 URL は `<a href>` でリンクするのみ
+- ユーザー入力は受け付けない（診断は自動、リファレンスは静的データ）
+
+#### 後方互換性
+
+- `Mission.healthFocus` は optional。既存ミッションに `healthFocus` を追加しなくても型エラーは発生しない（実際にはすべてのミッションに追加するが、追加忘れでもビルドは通る）
+- `ResultPanel.healthFindings` は optional。渡さなければ診断セクションは非表示
+- `Toolbar.onOpenHealthRules` は必須 prop として追加するため、Toolbar の全呼び出し元（App.tsx / DasWorkspaceLayout.tsx）に prop を追加する必要がある
+
+#### テスト戦略
+
+- `src/engine/healthCheck.ts` のユニットテスト（Vitest）:
+  - 青ロボット: ステップ数 ≤ 12 → rule-1 good、> 12 → improve
+  - 青ロボット: 無名ステップあり → rule-3 improve、全命名 → good
+  - 青ロボット: 重複アクション検出 → rule-5 improve
+  - 青ロボット: types/variables 定義あり → rule-6 good
+  - 青ロボット: 入力変数 + fromVariable 使用 → rule-10 good
+  - 緑ロボット: ガードチョイスあり + timeout あり → rule-9 good
+  - 緑ロボット: ガードチョイスあり + timeout なし → rule-9 improve
+  - 緑ロボット: 無名ステップあり → rule-3 improve
+  - `diagnose()` が healthFocus の条を必ず含むことの確認
+  - `diagnose()` が diagnosable: false の条を返さないことの確認
+- `src/data/healthRules.ts` の検証: 10 件の HEALTH_RULES が重複なく number 1〜10 を持つことを静的テスト
+- 既存テスト（87 件）はすべて無影響で通過すること
+
+---
+
+### docs/ への波及
+
+前回設計と同じく `docs/` 未整備のため更新不要。
+
+- [ ] `docs/functional-design.md` — 未作成のため対象外
+- [ ] `docs/architecture.md` — 未作成のため対象外
+
+---
+
+### 確定した公開 API 一覧（10 か条追補分）
+
+#### 新規型
+
+| 型名 | ファイル | 概要 |
+|---|---|---|
+| `HealthStatus` | `src/model/health.ts` | `'good' \| 'improve'` |
+| `HealthFinding` | `src/model/health.ts` | 1 条の診断結果（ruleId / ruleNumber / status / message） |
+| `HealthRule` | `src/model/health.ts` | 10 か条の 1 条の定義（id / number / title / description / diagnosable） |
+
+#### 新規定数
+
+| 定数名 | ファイル | 概要 |
+|---|---|---|
+| `HEALTH_RULES` | `src/data/healthRules.ts` | 10 か条の全定義（HealthRule[10]） |
+| `HEALTH_RULES_SOURCE_URL` | `src/data/healthRules.ts` | 出典 PDF の URL 文字列 |
+| `HEALTH_RULES_SOURCE_LABEL` | `src/data/healthRules.ts` | 出典のラベル文字列 |
+| `MISSION_HEALTH_FOCUS` | `src/data/healthRules.ts` | ミッション ID → フォーカス条番号の Record |
+
+#### 新規関数
+
+| 関数名 | ファイル | シグネチャ | 概要 |
+|---|---|---|---|
+| `diagnose` | `src/engine/healthCheck.ts` | `(robot: Robot \| DasRobot, mission: Mission) => HealthFinding[]` | ロボット構造を解析し、該当条の診断結果を返す（純粋関数） |
+
+#### 新規コンポーネント
+
+| コンポーネント | ファイル | 概要 |
+|---|---|---|
+| `HealthDiagnosis` | `src/components/game/HealthDiagnosis.tsx` | ResultPanel 内の折りたたみ診断セクション |
+| `HealthRulesPanel` | `src/components/game/HealthRulesPanel.tsx` | 10 か条リファレンスモーダル（Modal 利用） |
+
+#### 変更された型
+
+| 型名 | ファイル | 変更内容 |
+|---|---|---|
+| `Mission` | `src/model/mission.ts` | `healthFocus?: number[]` を optional 追加 |
+
+#### 変更されたコンポーネント props
+
+| コンポーネント | 追加 prop | 型 |
+|---|---|---|
+| `ResultPanel` | `healthFindings?` | `HealthFinding[]` |
+| `Toolbar` | `onOpenHealthRules` | `() => void` |
+
+---
+
+### 未確定事項
+
+藤田さんへの確認が必要な未確定事項はない。以下は実装フェーズで判断できる範囲:
+
+1. **第 1 条の閾値（12 ステップ）**: 教材規模の上限として 12 を設定したが、M4（ForEach）や D4（ForEach）で body ステップを含めると超える可能性がある。実装時に各ミッションの典型的な正解構成をカウントして閾値を微調整してよい
+2. **第 5 条の重複検出精度**: 完全一致（type + 全設定フィールド一致）での検出とする。部分一致や類似度計算は教材規模では over-engineering のため不採用
+3. **第 8 条（ログ出力）の DAS 対応**: DAS にログ出力ステップ（カタログの「ログ出力」）が未実装のため、現時点では diagnose は第 8 条を返さない。DAS カタログにログ出力が `implemented: true` になった時点で追加可能
+4. **HealthDiagnosis の初期展開/折りたたみ**: 設計では初期展開（教育目的で見せたい）とするが、プレイテストで「邪魔」との声があれば初期折りたたみに変更可能（useState のデフォルト値を変えるだけ）
+
+---

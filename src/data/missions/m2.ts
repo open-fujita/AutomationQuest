@@ -125,4 +125,5 @@ export const M2: Mission = {
     return `全 ${count} 件を収集できました。手作業 40 分 → ロボット 5 秒。`
   },
   glossary: ['forEach', 'type', 'variable', 'attribute', 'extract', 'dataState', 'branch'],
+  healthFocus: [6],
 }

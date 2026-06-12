@@ -17,7 +17,7 @@ task: 第2弾 DAS（緑ロボット）編の追加
 
 ### 開発
 - [[requirements]] — 要件定義（PM）
-- [[design]] — 実装設計（Architect）: DAS 専用モデル型・tick 駆動シミュレータ・チェックビルダー・UI コンポーネント構成の公開 API を確定
+- [[design]] — 実装設計（Architect）: DAS 専用モデル型・tick 駆動シミュレータ・チェックビルダー・UI コンポーネント構成の公開 API を確定。2026-06-13 追補: 健康なロボットの10か条 統合設計（診断エンジン・リファレンスモーダル・ResultPanel 統合）
 - [[tasklist]] — タスク分解（Dev Lead）
 - [[review]] — 受け入れ条件チェック（Reviewer）
 

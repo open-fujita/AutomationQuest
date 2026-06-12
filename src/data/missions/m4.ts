@@ -104,4 +104,5 @@ export const M4: Mission = {
     )
   },
   glossary: ['branch', 'endStep', 'forEach', 'snippet'],
+  healthFocus: [1],
 }

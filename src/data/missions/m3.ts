@@ -100,4 +100,5 @@ export const M3: Mission = {
     return `未対応の ${count} 件だけに仕分けられました。手作業 25 分 → ロボット 4 秒。${tail}`
   },
   glossary: ['testStep', 'branch', 'forEach', 'debug'],
+  healthFocus: [3, 5],
 }

@@ -258,6 +258,7 @@ export const D3: Mission = {
     )
   },
   glossary: ['applicationFound', 'applicationNotFound', 'notification'],
+  healthFocus: [9],
   site: { id: 'd3-dummy', url: '', title: '', intro: '', singles: [] },
   checks: [],
 }
