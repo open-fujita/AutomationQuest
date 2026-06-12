@@ -24,6 +24,7 @@ import type { DasSimResult } from '../../engine/dasSimulator'
 import { FlowPoint, FlowLine } from './FlowPoint'
 import { StepCard } from './StepCard'
 
+
 // カードヘッダの中心 Y（上端からの px）。
 // StepCard のヘッダ高は py-1.5（6px top/bottom） + text-[12px]（約14px） ≒ 26px → 中心 = 13px。
 // 線・○ の中心をここに合わせる（mt でオフセット）。
@@ -38,8 +39,14 @@ interface HorizontalFlowProps {
   selectedStepId: string | null
   onSelect: (id: string) => void
   onRemove?: (id: string) => void
-  /** 再帰時は true（最初の FlowPoint を省略しない） */
+  /** 再帰時は true（ aria-label を省略） */
   isNested?: boolean
+  /**
+   * true のとき先頭 FlowPoint を描かない。
+   * ループ body（StepCard の renderSteps 経由）では LoopFlowMarker が既に黄○を描いているため
+   * HorizontalFlow の先頭青○と重複しないよう省略する。
+   */
+  omitFirstPoint?: boolean
 }
 
 function HorizontalFlow({
@@ -49,8 +56,9 @@ function HorizontalFlow({
   onSelect,
   onRemove,
   isNested = false,
+  omitFirstPoint = false,
 }: HorizontalFlowProps) {
-  // renderSteps: 循環参照を避けて再帰呼び出しするためのコールバック
+  // renderSteps: ループ body 用（先頭 FlowPoint を省略）
   const renderSteps = useCallback(
     (innerSteps: DasStep[]) => (
       <HorizontalFlow
@@ -59,6 +67,7 @@ function HorizontalFlow({
         selectedStepId={selectedStepId}
         onSelect={onSelect}
         isNested
+        omitFirstPoint
       />
     ),
     [sim, selectedStepId, onSelect],
@@ -70,11 +79,13 @@ function HorizontalFlow({
 
   return (
     <div className="flex items-start" role="list" aria-label={isNested ? undefined : 'ステップ一覧'}>
-      {/* 最初の FlowPoint */}
-      <div className={`${lineStyle} ${lineMt}`}>
-        <FlowPoint label={isNested ? undefined : 'フロー開始'} />
-        <FlowLine width={8} />
-      </div>
+      {/* 先頭 FlowPoint: omitFirstPoint=true（ループ body）のときは省略 */}
+      {!omitFirstPoint && (
+        <div className={`${lineStyle} ${lineMt}`}>
+          <FlowPoint label={isNested ? undefined : 'フロー開始'} />
+          <FlowLine width={8} />
+        </div>
+      )}
 
       {steps.map((step, i) => (
         <React.Fragment key={step.id}>
@@ -89,7 +100,17 @@ function HorizontalFlow({
               renderSteps={renderSteps}
             />
           </div>
-          {/* カード後の接続線 + フローポイント */}
+          {/*
+           * カード後コネクタ（接続線 + ○）
+           *
+           * ループ系・通常系ともに同じ構造:
+           *   中間: FlowLine — FlowPoint — FlowLine
+           *   最終: FlowLine のみ（終端○は後続の「フロー終了」ブロックで描く）
+           *
+           * ループ系 StepCard（ForEach / Loop / WhileLoop）は body 末尾まで内部で描くが、
+           * 末尾 FlowLine / FlowPoint は描かず DasWorkflowView に委ねる。
+           * これにより LoopFlowMarker（黄○）と通常コネクタ（青○）の重複が発生しない。
+           */}
           <div className={`${lineStyle} ${lineMt}`}>
             <FlowLine width={8} />
             {i < steps.length - 1 && (
@@ -102,14 +123,22 @@ function HorizontalFlow({
         </React.Fragment>
       ))}
 
-      {/* 最後のフローポイント（ステップが 0 件のときは最初の後につける） */}
-      {steps.length === 0 && (
+      {/*
+       * 末尾 FlowPoint
+       *
+       * ループ body（omitFirstPoint=true）では省略する:
+       *   body 末尾の ○ は DasWorkflowView の通常コネクタが描くため重複しない。
+       * トップレベル / ガード枝（omitFirstPoint=false）: 従来通り描く。
+       *
+       * ステップ 0 件: omitFirstPoint=true（ループ空 body）のときは StepCard がピルを表示するため何も描かない。
+       */}
+      {!omitFirstPoint && steps.length === 0 && (
         <div className={`${lineStyle} ${lineMt}`}>
           <FlowLine width={16} />
           <FlowPoint label="フロー終了" />
         </div>
       )}
-      {steps.length > 0 && (
+      {!omitFirstPoint && steps.length > 0 && (
         <div className={`${lineStyle} ${lineMt}`}>
           <FlowPoint label={isNested ? undefined : 'フロー終了'} />
         </div>

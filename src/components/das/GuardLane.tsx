@@ -238,24 +238,27 @@ export const GuardLane = React.memo(function GuardLane({
       </div>
 
       {/* ──────────────────────────────────────────────────
-          青線 → ○ → 枝ステップカード列（横フロー）
+          青線 → 枝ステップカード列（横フロー）→ 右端合流
           フローライン固定 Y 方式: FLOW_Y_OFFSET = 7px で揃える
           ────────────────────────────────────────────────── */}
-      {/* レーン内固定 Y オフセット（カードヘッダ中心に線を通す） */}
+      {/*
+       * ガード設定ボックス直後の接続線のみ描く（○ は HorizontalFlow の先頭 FlowPoint が担う）。
+       * 旧: FlowLine → ○(枝開始) → FlowLine → [HF: ○ → ...] → ○ が二重になっていた。
+       * 新: FlowLine → [HF: ○(枝開始) → line → steps → ○] → FlowLine → ○(枝終了)
+       */}
       <div className="flex items-center self-start shrink-0 mt-[7px]">
-        <FlowLine width={16} />
-        <FlowPoint label={`ガード ${guardIndex + 1} 枝の開始`} />
         <FlowLine width={8} />
       </div>
       <div className="flex items-start gap-0">
         {renderBranchSteps(guard.steps)}
         {guard.steps.length === 0 && (
-          <div className="flex items-center text-[10px] text-das-textDim/60 italic px-2 py-1 shrink-0 self-start mt-[7px]">
-            （ステップなし）
-          </div>
+          /* HF が空ステップの場合「FlowLine + ○(フロー終了)」を描くが、
+           * ガード枝が空のとき HF 自身が先頭○ + line + 終端○ を描く。
+           * 追加のテキスト表示は不要（HF の空フロー表示と重複するため削除） */
+          null
         )}
       </div>
-      {/* 右端合流線 */}
+      {/* 右端合流線: HF 終端 ○ の後の FlowLine + 合流 ○ */}
       <div className="flex items-center self-start shrink-0 mt-[7px]">
         <FlowLine width={8} />
         <FlowPoint label={`ガード ${guardIndex + 1} 枝の終了`} />
