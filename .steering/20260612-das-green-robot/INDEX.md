@@ -20,6 +20,7 @@ task: 第2弾 DAS（緑ロボット）編の追加
 - [[design]] — 実装設計（Architect）: DAS 専用モデル型・tick 駆動シミュレータ・チェックビルダー・UI コンポーネント構成の公開 API を確定。2026-06-13 追補: 健康なロボットの10か条 統合設計（診断エンジン・リファレンスモーダル・ResultPanel 統合）
 - [[tasklist]] — タスク分解（Dev Lead）
 - [[review]] — 受け入れ条件チェック（Reviewer）
+- [[bug-analysis-white-screen]] — 「実行で画面が真っ白」バグ調査（Debugger）: render 経路では再現不能。動的 Tailwind クラス未出力・tbody×listitem ネストの実在欠陥を発見。実機スタック採取＋Error Boundary 導入を提案
 
 ### ミッションデータ（frontend 担当）
 - `src/data/missions/d1.ts` — D1「はじめての緑ロボット」: 在庫管理システム（静的）。ウィンドウを開く→クリック→値を抽出の基本 3 ステップ

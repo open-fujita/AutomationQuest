@@ -6,6 +6,9 @@
 // 要素右クリック → ステップ/ガード挿入（ファインダーを自動生成して dasRobotStore.addStep）
 // 下部: マウス座標風のステータス行（実機準拠の演出）
 // アクセシビリティ: tab 切り替え aria-selected / コンテキストメニュー role="menu"
+//
+// [修正] selectedWidget（AppWidget オブジェクト参照）を selectedWidgetId（string | null）に変更。
+//   描画のたびに現在 tick のツリーから id で解決し、見つからなければ null 扱い（stale 参照安全化）。
 // ============================================================
 
 import React, { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react'
@@ -329,7 +332,10 @@ interface RecorderViewProps {
 
 export default function RecorderView({ app, currentTick }: RecorderViewProps) {
   const [activeTab, setActiveTab] = useState<'app' | 'tree'>('app')
-  const [selectedWidget, setSelectedWidget] = useState<AppWidget | null>(null)
+
+  // [修正] AppWidget オブジェクト参照から ID 文字列へ変更（stale 参照安全化）。
+  // 描画ごとに現在 tick のツリーから id で解決する。見つからない場合は null 扱い。
+  const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{
     widget: AppWidget
     position: { x: number; y: number }
@@ -340,16 +346,39 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
   const selectedStepId = useDasRobotStore((s) => s.selectedStepId)
   const robot = useDasRobotStore((s) => s.robot)
 
+  // ---- 現在 tick のウィジェット一覧（render 内で共有） ----------
+  // メモ化は行わず tick 変化に応じて毎回再計算する（軽量な純粋関数）
+  const currentWidgets = app ? applyTimeline(app, currentTick) : []
+
+  // ---- selectedWidget を ID から現在 tick のツリーで解決 --------
+  // 見つからなければ null（tick 後にウィジェットが消えた場合も安全）
+  function resolveSelectedWidget(): AppWidget | null {
+    if (!app || !selectedWidgetId) return null
+    const path = findWidgetPath(currentWidgets, selectedWidgetId)
+    return path ? (path[path.length - 1] ?? null) : null
+  }
+  const selectedWidget = resolveSelectedWidget()
+
+  // ---- tick が変わったときに selectedWidgetId が存在しなければクリア ----
+  // コンテキストメニューも tick 変化で閉じる（stale widget を保持しない）
+  useEffect(() => {
+    if (!app) return
+    if (selectedWidgetId !== null) {
+      const widgets = applyTimeline(app, currentTick)
+      const path = findWidgetPath(widgets, selectedWidgetId)
+      if (!path) {
+        // ツリーから消えていたので選択解除
+        setSelectedWidgetId(null)
+      }
+    }
+    // tick が変わったらコンテキストメニューも閉じる
+    setContextMenu(null)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTick, app])
+
   // ---- スコープナビゲーション用ヘルパー -------------------------
-  // 現在 tick のウィジェットフラット一覧（兄弟取得に使う）
-  // ※ この関数は純粋なので render 内で inline 計算して OK
-  //    ただし毎回実行するとコストがかかるため、必要時のみ呼ぶ
 
   // 選択ステップが ForEach の場合に loop/element ハイライト用ウィジェット ID を導出する
-  // （DALoopFinder.png 準拠: スコープ = 青「loop」バッジ 1 個、最初の要素 = 緑「element」バッジ 1 個）
-  //
-  // セレクタを ID に変換してから MockAppView に渡すことで
-  // 「全一致ウィジェットにバッジが付く」バグを防ぐ。
   const { loopScopeId, loopElementId } = (() => {
     if (!app) return { loopScopeId: null, loopElementId: null }
     if (!selectedStepId) return { loopScopeId: null, loopElementId: null }
@@ -381,16 +410,12 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
     }
     const feAction = step.action
 
-    // 現在 tick のウィジェット状態を取得してセレクタを解決する
-    const widgets = applyTimeline(app, currentTick)
-
     // スコープ: scopeFinder.selector に一致する最初の 1 ウィジェット
     const scopeWidget = feAction.scopeFinder.selector
-      ? findWidget(widgets, feAction.scopeFinder.selector)
+      ? findWidget(currentWidgets, feAction.scopeFinder.selector)
       : undefined
 
     // エレメント: スコープ配下で elementFinder.selector に一致する最初の 1 ウィジェット
-    // 公式仕様: 結合ファインダー = スコープセレクタ＋相対セレクタ → スコープ配下のみ検索
     let firstElement: AppWidget | undefined
     if (scopeWidget && feAction.elementFinder.selector) {
       const rawElemSel = feAction.elementFinder.selector.trim()
@@ -413,16 +438,13 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
   })()
 
   // ---- タグパス（祖先パス）の計算 --------------------------------
-  // selectedWidget が存在する場合にのみ計算する
+  // selectedWidget が存在する場合にのみ計算する（ID ベースで解決済み）
   const tagPath: AppWidget[] = (() => {
-    if (!app || !selectedWidget) return []
-    const widgets = applyTimeline(app, currentTick)
-    return findWidgetPath(widgets, selectedWidget.id) ?? []
+    if (!selectedWidget) return []
+    return findWidgetPath(currentWidgets, selectedWidget.id) ?? []
   })()
 
   // ---- タグパスセグメントの文字列変換 ---------------------------
-  // type[index] 形式: 同型兄弟が複数いるときのみ [n] を付与
-  // ancestors: そのウィジェットが属する親の children 配列
   function tagSegmentLabel(widget: AppWidget, siblings: AppWidget[]): string {
     const sameType = siblings.filter((s) => s.type === widget.type)
     if (sameType.length <= 1) return widget.type
@@ -432,32 +454,31 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
 
   // ---- スコープ操作: 現在 tick のウィジェットを取得 -------------
   function getWidgets(): AppWidget[] {
-    if (!app) return []
-    return applyTimeline(app, currentTick)
+    return currentWidgets
   }
 
   // 「1 レベル外側のタグを選択」（親へ）
-  const canSelectParent = tagPath.length >= 2
+  const canSelectParent = !!selectedWidget && tagPath.length >= 2
   const handleSelectParent = useCallback(() => {
-    if (!app || !selectedWidget) return
-    const path = findWidgetPath(applyTimeline(app, currentTick), selectedWidget.id)
+    if (!app || !selectedWidgetId) return
+    const widgets = applyTimeline(app, currentTick)
+    const path = findWidgetPath(widgets, selectedWidgetId)
     if (!path || path.length < 2) return
-    setSelectedWidget(path[path.length - 2])
-  }, [app, selectedWidget, currentTick])
+    const parent = path[path.length - 2]
+    if (parent) setSelectedWidgetId(parent.id)
+  }, [app, selectedWidgetId, currentTick])
 
   // 「1 レベル内側のタグを選択」（最初の可視の子へ）
   const firstVisibleChild = selectedWidget?.children.find((c) => c.visible) ?? null
   const canSelectChild = !!firstVisibleChild
   const handleSelectChild = useCallback(() => {
     if (!firstVisibleChild) return
-    setSelectedWidget(firstVisibleChild)
+    setSelectedWidgetId(firstVisibleChild.id)
   }, [firstVisibleChild])
 
   // 「前のタグを選択」（前の兄弟）・「次のタグを選択」（次の兄弟）
-  // 兄弟取得: tagPath の親の children から visible なもの
   const visibleSiblings: AppWidget[] = (() => {
     if (tagPath.length < 2) {
-      // ルート要素の場合は appWidgets のルートが兄弟
       return getWidgets().filter((w) => w.visible)
     }
     return (tagPath[tagPath.length - 2]?.children ?? []).filter((w) => w.visible)
@@ -470,26 +491,28 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
 
   const handleSelectPrev = useCallback(() => {
     if (siblingIndex <= 0) return
-    setSelectedWidget(visibleSiblings[siblingIndex - 1])
+    const prev = visibleSiblings[siblingIndex - 1]
+    if (prev) setSelectedWidgetId(prev.id)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siblingIndex, visibleSiblings])
 
   const handleSelectNext = useCallback(() => {
     if (siblingIndex < 0 || siblingIndex >= visibleSiblings.length - 1) return
-    setSelectedWidget(visibleSiblings[siblingIndex + 1])
+    const next = visibleSiblings[siblingIndex + 1]
+    if (next) setSelectedWidgetId(next.id)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siblingIndex, visibleSiblings])
 
   // アプリ画面での要素左クリック（選択）
   const handleLeftClick = useCallback((widget: AppWidget, _e: React.MouseEvent) => {
-    setSelectedWidget(widget)
+    setSelectedWidgetId(widget.id)
   }, [])
 
   // アプリ画面での要素右クリック
   const handleRightClick = useCallback((widget: AppWidget, e: React.MouseEvent) => {
     e.preventDefault()
     setContextMenu({ widget, position: { x: e.clientX, y: e.clientY } })
-    setSelectedWidget(widget)
+    setSelectedWidgetId(widget.id)
   }, [])
 
   // マウス座標追跡（演出用）
@@ -547,21 +570,16 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
   }, [contextMenu, addStep])
 
   // ---- For Each ループ（兄弟系）----------------------------------
-  // 右クリックした要素 W の「親」をスコープにして、W と同じ type の兄弟を全件反復する。
-  // 正しい仕様:
-  //   scope  = 親要素のセレクタ（type + name 属性）
-  //   element = > W.type   （親の直接の子 = 兄弟行を 1 件ずつ反復）
   const handleInsertForEachSiblings = useCallback((): (() => void) | null => {
     if (!app || !contextMenu) return null
     const widget = contextMenu.widget
     const widgets = applyTimeline(app, currentTick)
     const path = findWidgetPath(widgets, widget.id)
-    // path[-2] が親、path[-1] が W 自身
-    if (!path || path.length < 2) return null  // 親なし（window 等）は null
+    if (!path || path.length < 2) return null
     const parent = path[path.length - 2]
+    if (!parent) return null
 
     return () => {
-      // 親要素のセレクタを生成（type + name 属性があれば付与）
       const parentSelector =
         parent.type + (parent.attrs['name'] ? `[name="${parent.attrs['name']}"]` : '')
       const elementSelector = `> ${widget.type}`
@@ -583,14 +601,9 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
   }, [app, contextMenu, currentTick, addStep])
 
   // ---- For Each ループ（子ノード系）-------------------------------
-  // 右クリックした要素 W 自身をスコープにして、W の直接の子を全件反復する。
-  // 正しい仕様:
-  //   scope  = W のセレクタ（type + name 属性）
-  //   element = > 最初の可視の子の type
   const handleInsertForEachChildren = useCallback((): (() => void) | null => {
     if (!contextMenu) return null
     const widget = contextMenu.widget
-    // 子が存在しない場合は null（メニュー項目を disabled にする）
     const firstChild = widget.children.find((c) => c.visible)
     if (!firstChild) return null
 
@@ -617,7 +630,6 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
 
   const handleInsertGuard = useCallback((guardType: 'locationFound' | 'applicationFound') => {
     if (!contextMenu || !guardedChoiceStep) {
-      // ガードチョイスが選択されていない場合は新規ガードチョイスを作成
       if (contextMenu) {
         const finder = generateFinder(contextMenu.widget)
         const guard: Guard = { type: guardType, finder, steps: [] }
@@ -625,7 +637,6 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
       }
       return
     }
-    // 既存のガードチョイスにガードを追加
     const finder = generateFinder(contextMenu.widget)
     const addGuard = useDasRobotStore.getState().addGuard
     addGuard(guardedChoiceStep.id, { type: guardType, finder, steps: [] })
@@ -687,7 +698,6 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
             <ScopeNavButton
               icon={
                 <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="currentColor">
-                  {/* 左上方向の矢印（実機の ↖ に近い斜め上左） */}
                   <path d="M3 3h5v1.5H5.06l5.47 5.47-1.06 1.06L4 5.56V7.5H2.5V3H3z"/>
                   <rect x="2" y="2" width="6" height="1.5" rx="0.4"/>
                 </svg>
@@ -741,7 +751,7 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
               currentTick={currentTick}
               onLeftClick={handleLeftClick}
               onRightClick={handleRightClick}
-              selectedWidgetId={selectedWidget?.id}
+              selectedWidgetId={selectedWidgetId}
               loopScopeId={loopScopeId}
               loopElementId={loopElementId}
             />
@@ -754,13 +764,13 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
                 aria-label="要素ツリー"
                 className="text-[11px]"
               >
-                {applyTimeline(app, currentTick).map((w) => (
+                {currentWidgets.map((w) => (
                   <WidgetTreeItem
                     key={w.id}
                     widget={w}
                     depth={0}
-                    selectedWidgetId={selectedWidget?.id ?? null}
-                    onSelect={setSelectedWidget}
+                    selectedWidgetId={selectedWidgetId}
+                    onSelect={(widget) => setSelectedWidgetId(widget.id)}
                     onRightClick={handleRightClick}
                   />
                 ))}
@@ -777,14 +787,14 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
         >
           {tagPath.length === 0 ? (
             <span className="text-das-textDim italic">
-              {selectedWidget ? '...' : '要素をクリックして選択'}
+              {selectedWidgetId ? '...' : '要素をクリックして選択'}
             </span>
           ) : (
             tagPath.map((seg, i) => {
               // 親の children を求める（セグメントラベルの [n] 計算用）
               const parentChildren =
                 i === 0
-                  ? (app ? applyTimeline(app, currentTick) : [])
+                  ? currentWidgets
                   : tagPath[i - 1].children
               const label = tagSegmentLabel(seg, parentChildren)
               const isLast = i === tagPath.length - 1
@@ -802,7 +812,7 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
                         ? 'font-bold text-das-text bg-das-accent2/10 border border-das-accent2/30'
                         : 'text-das-textDim hover:text-das-text hover:bg-das-panelAlt',
                     ].join(' ')}
-                    onClick={() => setSelectedWidget(seg)}
+                    onClick={() => setSelectedWidgetId(seg.id)}
                     title={`${label} を選択`}
                     aria-current={isLast ? 'true' : undefined}
                   >

@@ -73,15 +73,18 @@ function HorizontalFlow({
     [sim, selectedStepId, onSelect],
   )
 
-  // 接続線・フローポイントのスタイル: 固定 Y に揃えるため self-start + mt で上端を指定
+  // 接続線・フローポイントのスタイル: 固定 Y に揃えるため self-start + marginTop で上端を指定
+  // [修正] `mt-[${FLOW_Y_OFFSET}px]` はテンプレートリテラルで合成した動的クラスのため
+  //   Tailwind JIT がビルド時にスキャンできずクラスが生成されなかった。
+  //   インラインスタイル（style={{ marginTop: FLOW_Y_OFFSET }}）に統一する。
   const lineStyle = `flex items-center self-start shrink-0`
-  const lineMt = `mt-[${FLOW_Y_OFFSET}px]`
+  const lineInlineStyle = { marginTop: `${FLOW_Y_OFFSET}px` }
 
   return (
     <div className="flex items-start" role="list" aria-label={isNested ? undefined : 'ステップ一覧'}>
       {/* 先頭 FlowPoint: omitFirstPoint=true（ループ body）のときは省略 */}
       {!omitFirstPoint && (
-        <div className={`${lineStyle} ${lineMt}`}>
+        <div className={lineStyle} style={lineInlineStyle}>
           <FlowPoint label={isNested ? undefined : 'フロー開始'} />
           <FlowLine width={8} />
         </div>
@@ -111,7 +114,7 @@ function HorizontalFlow({
            * 末尾 FlowLine / FlowPoint は描かず DasWorkflowView に委ねる。
            * これにより LoopFlowMarker（黄○）と通常コネクタ（青○）の重複が発生しない。
            */}
-          <div className={`${lineStyle} ${lineMt}`}>
+          <div className={lineStyle} style={lineInlineStyle}>
             <FlowLine width={8} />
             {i < steps.length - 1 && (
               <>
@@ -133,13 +136,13 @@ function HorizontalFlow({
        * ステップ 0 件: omitFirstPoint=true（ループ空 body）のときは StepCard がピルを表示するため何も描かない。
        */}
       {!omitFirstPoint && steps.length === 0 && (
-        <div className={`${lineStyle} ${lineMt}`}>
+        <div className={lineStyle} style={lineInlineStyle}>
           <FlowLine width={16} />
           <FlowPoint label="フロー終了" />
         </div>
       )}
       {!omitFirstPoint && steps.length > 0 && (
-        <div className={`${lineStyle} ${lineMt}`}>
+        <div className={lineStyle} style={lineInlineStyle}>
           <FlowPoint label={isNested ? undefined : 'フロー終了'} />
         </div>
       )}

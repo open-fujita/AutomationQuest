@@ -240,13 +240,14 @@ export const GuardLane = React.memo(function GuardLane({
       {/* ──────────────────────────────────────────────────
           青線 → 枝ステップカード列（横フロー）→ 右端合流
           フローライン固定 Y 方式: FLOW_Y_OFFSET = 7px で揃える
+          [修正] mt-[7px] は Tailwind JIT がスキャンできないため style 属性に統一
           ────────────────────────────────────────────────── */}
       {/*
        * ガード設定ボックス直後の接続線のみ描く（○ は HorizontalFlow の先頭 FlowPoint が担う）。
        * 旧: FlowLine → ○(枝開始) → FlowLine → [HF: ○ → ...] → ○ が二重になっていた。
        * 新: FlowLine → [HF: ○(枝開始) → line → steps → ○] → FlowLine → ○(枝終了)
        */}
-      <div className="flex items-center self-start shrink-0 mt-[7px]">
+      <div className="flex items-center self-start shrink-0" style={{ marginTop: '7px' }}>
         <FlowLine width={8} />
       </div>
       <div className="flex items-start gap-0">
@@ -259,7 +260,7 @@ export const GuardLane = React.memo(function GuardLane({
         )}
       </div>
       {/* 右端合流線: HF 終端 ○ の後の FlowLine + 合流 ○ */}
-      <div className="flex items-center self-start shrink-0 mt-[7px]">
+      <div className="flex items-center self-start shrink-0" style={{ marginTop: '7px' }}>
         <FlowLine width={8} />
         <FlowPoint label={`ガード ${guardIndex + 1} 枝の終了`} />
       </div>

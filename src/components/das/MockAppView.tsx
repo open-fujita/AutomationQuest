@@ -211,13 +211,31 @@ const WidgetComponent = React.memo(function WidgetComponent({
             onContextMenu={handleRightClick}
           >
             <tbody>
-              {widget.children.map((row) => (
-                <WidgetComponent
-                  key={row.id}
-                  widget={row}
-                  {...childProps}
-                />
-              ))}
+              {widget.children.map((row) => {
+                // [修正] listitem など tablerow 以外の子を tbody 直下に div で入れると
+                //   不正な DOM ネストになる（tbody > div は HTML 仕様違反）。
+                //   tablerow 以外の子は tr > td で包んで正しいネストを保つ。
+                //   見た目は listitem ケースと同等（セル内にレンダリング）。
+                if (row.type !== 'tablerow') {
+                  return (
+                    <tr key={row.id} className="border-b border-gray-300">
+                      <td className="px-2 py-0.5">
+                        <WidgetComponent
+                          widget={row}
+                          {...childProps}
+                        />
+                      </td>
+                    </tr>
+                  )
+                }
+                return (
+                  <WidgetComponent
+                    key={row.id}
+                    widget={row}
+                    {...childProps}
+                  />
+                )
+              })}
             </tbody>
           </table>
         </div>
