@@ -41,6 +41,16 @@ export interface DasSimLogEntry {
   tick?: number
 }
 
+/** For Each ステップ 1 回の実行統計 */
+export interface ForEachRunRecord {
+  stepId: string
+  stepName: string
+  /** scopeFinder がウィジェットとして解決できたか */
+  scopeMatched: boolean
+  /** 反復した要素数（scopeMatched=false のとき 0） */
+  iterations: number
+}
+
 export interface DasSimResult {
   ran: boolean
   /** 変数名 → 抽出レコード列 */
@@ -51,6 +61,8 @@ export interface DasSimResult {
   totalTick: number
   /** 各ガードチョイスの結果（どのガードが成立したか） */
   guardResults: { stepId: string; winnerGuardType: GuardType; tick: number }[]
+  /** For Each ステップごとの実行統計（未実行の場合は空配列） */
+  forEachRuns: ForEachRunRecord[]
 }
 
 export const EMPTY_DAS_SIM: DasSimResult = {
@@ -60,6 +72,7 @@ export const EMPTY_DAS_SIM: DasSimResult = {
   errors: [],
   totalTick: 0,
   guardResults: [],
+  forEachRuns: [],
 }
 
 // ---- 内部状態 -------------------------------------------------
@@ -79,6 +92,7 @@ interface SimState {
   log: DasSimLogEntry[]
   errors: string[]
   guardResults: { stepId: string; winnerGuardType: GuardType; tick: number }[]
+  forEachRuns: ForEachRunRecord[]
   currentTick: number
   /** For Each の反復中の現在ウィジェット（ネスト対応スタック） */
   forEachStack: { scopeWidget: AppWidget; currentElement: AppWidget }[]
@@ -118,6 +132,7 @@ export function runDasRobot(
     log: [],
     errors: [],
     guardResults: [],
+    forEachRuns: [],
     currentTick: 0,
     forEachStack: [],
     breakFlag: false,
@@ -157,6 +172,7 @@ export function runDasRobot(
     errors: state.errors,
     totalTick: state.currentTick,
     guardResults: state.guardResults,
+    forEachRuns: state.forEachRuns,
   }
 }
 
@@ -636,6 +652,13 @@ function execForEach(state: SimState, step: DasStep, action: Extract<DasAction, 
   // スコープファインダーで起点ウィジェットを特定
   const scopeWidget = findWidget(widgets, action.scopeFinder.selector)
   if (!scopeWidget) {
+    // スコープ解決失敗として記録
+    state.forEachRuns.push({
+      stepId: step.id,
+      stepName: step.name,
+      scopeMatched: false,
+      iterations: 0,
+    })
     state.log.push({
       stepId: step.id,
       stepName: step.name,
@@ -653,6 +676,13 @@ function execForEach(state: SimState, step: DasStep, action: Extract<DasAction, 
   const elements = collectElements(widgets, action.elementFinder.selector, scopeWidget)
 
   if (elements.length === 0) {
+    // スコープは解決できたが反復対象が 0 件
+    state.forEachRuns.push({
+      stepId: step.id,
+      stepName: step.name,
+      scopeMatched: true,
+      iterations: 0,
+    })
     state.log.push({
       stepId: step.id,
       stepName: step.name,
@@ -666,6 +696,14 @@ function execForEach(state: SimState, step: DasStep, action: Extract<DasAction, 
 
   // excludeFirst: 最初の要素をスキップ（□最初を除外 チェックボックス）
   const iterElements = action.excludeFirst ? elements.slice(1) : elements
+
+  // For Each 実行統計を記録（スコープ解決成功 + 実際の反復件数）
+  state.forEachRuns.push({
+    stepId: step.id,
+    stepName: step.name,
+    scopeMatched: true,
+    iterations: iterElements.length,
+  })
 
   state.log.push({
     stepId: step.id,

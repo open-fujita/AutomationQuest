@@ -92,7 +92,7 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
   // 実行ボタン
   const onRun = () => {
     if (!mission.mockApp) {
-      setSim({ ran: true, data: {}, log: [], errors: [], totalTick: 0, guardResults: [] })
+      setSim({ ran: true, data: {}, log: [], errors: [], totalTick: 0, guardResults: [], forEachRuns: [] })
       return
     }
     const result = runDasRobot(robot, mission.mockApp, {

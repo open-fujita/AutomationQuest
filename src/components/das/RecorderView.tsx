@@ -10,7 +10,7 @@
 
 import React, { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react'
 import type { AppWidget, MockApp } from '../../model/mockApp'
-import { applyTimeline } from '../../model/mockApp'
+import { applyTimeline, findWidget } from '../../model/mockApp'
 import type { DasFinder, Guard } from '../../model/dasRobot'
 import { GUARD_TYPE_LABELS } from '../../model/dasRobot'
 import { useDasRobotStore } from '../../store/dasRobotStore'
@@ -282,10 +282,15 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
   const selectedStepId = useDasRobotStore((s) => s.selectedStepId)
   const robot = useDasRobotStore((s) => s.robot)
 
-  // 選択ステップが ForEach の場合に loop/element ハイライト用セレクタを導出する
-  // （DALoopFinder.png 準拠: スコープ = 青「loop」、最初の要素 = 緑「element」）
-  const { loopScopeSelector, loopElementSelector } = (() => {
-    if (!selectedStepId) return { loopScopeSelector: null, loopElementSelector: null }
+  // 選択ステップが ForEach の場合に loop/element ハイライト用ウィジェット ID を導出する
+  // （DALoopFinder.png 準拠: スコープ = 青「loop」バッジ 1 個、最初の要素 = 緑「element」バッジ 1 個）
+  //
+  // セレクタを ID に変換してから MockAppView に渡すことで
+  // 「全一致ウィジェットにバッジが付く」バグを防ぐ。
+  const { loopScopeId, loopElementId } = (() => {
+    if (!app) return { loopScopeId: null, loopElementId: null }
+    if (!selectedStepId) return { loopScopeId: null, loopElementId: null }
+
     // ステップを再帰探索
     function findStep(steps: typeof robot.steps): typeof robot.steps[0] | null {
       for (const s of steps) {
@@ -309,15 +314,38 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
     }
     const step = findStep(robot.steps)
     if (!step || step.action.type !== 'ForEach') {
-      return { loopScopeSelector: null, loopElementSelector: null }
+      return { loopScopeId: null, loopElementId: null }
     }
     const feAction = step.action
-    // 要素セレクタ: '> TYPE' 形式から TYPE 部分を取り出す（相対セレクタを絶対セレクタに変換）
-    const rawElemSel = feAction.elementFinder.selector.trim()
-    const elemSel = rawElemSel.startsWith('>') ? rawElemSel.slice(1).trim() : rawElemSel
+
+    // 現在 tick のウィジェット状態を取得してセレクタを解決する
+    const widgets = applyTimeline(app, currentTick)
+
+    // スコープ: scopeFinder.selector に一致する最初の 1 ウィジェット
+    const scopeWidget = feAction.scopeFinder.selector
+      ? findWidget(widgets, feAction.scopeFinder.selector)
+      : undefined
+
+    // エレメント: スコープ配下で elementFinder.selector に一致する最初の 1 ウィジェット
+    // 公式仕様: 結合ファインダー = スコープセレクタ＋相対セレクタ → スコープ配下のみ検索
+    let firstElement: AppWidget | undefined
+    if (scopeWidget && feAction.elementFinder.selector) {
+      const rawElemSel = feAction.elementFinder.selector.trim()
+      if (rawElemSel.startsWith('>')) {
+        // '> TYPE' の場合: scopeWidget の直接の子のみを対象
+        const rest = rawElemSel.slice(1).trim()
+        firstElement = scopeWidget.children.find(
+          (child) => child.visible && findWidget([child], rest) !== undefined,
+        )
+      } else {
+        // 非相対: scopeWidget の子孫を再帰検索（最初の 1 件）
+        firstElement = findWidget(scopeWidget.children, rawElemSel)
+      }
+    }
+
     return {
-      loopScopeSelector: feAction.scopeFinder.selector || null,
-      loopElementSelector: elemSel || null,
+      loopScopeId: scopeWidget?.id ?? null,
+      loopElementId: firstElement?.id ?? null,
     }
   })()
 
@@ -470,8 +498,8 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
               currentTick={currentTick}
               onRightClick={handleRightClick}
               selectedWidgetId={selectedWidget?.id}
-              loopScopeSelector={loopScopeSelector}
-              elementSelector={loopElementSelector}
+              loopScopeId={loopScopeId}
+              loopElementId={loopElementId}
             />
           )}
 

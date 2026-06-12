@@ -9,7 +9,7 @@
 
 import React from 'react'
 import type { AppWidget, MockApp } from '../../model/mockApp'
-import { applyTimeline, findWidget } from '../../model/mockApp'
+import { applyTimeline } from '../../model/mockApp'
 
 // ---- ウィジェット描画 ----------------------------------------
 
@@ -19,34 +19,30 @@ interface WidgetProps {
   selectedWidgetId?: string | null
   /**
    * ForEach 選択中ハイライト（DALoopFinder.png 準拠）:
-   *   loopScopeSelector  = スコープ要素の CSS 風セレクタ → 青枠 + 「loop」タグ
-   *   elementSelector    = 最初の要素のセレクタ → 緑枠 + 「element」タグ
+   *   loopScopeId  = スコープに一致した最初の 1 ウィジェットの id → 青枠 + 「loop」タグ
+   *   loopElementId = スコープ配下で結合セレクタに一致する最初の 1 エレメントの id → 緑枠 + 「element」タグ
+   *
+   * ID ベースで判定することで「全一致に付けてしまう」バグを防ぐ。
    */
-  loopScopeSelector?: string | null
-  elementSelector?: string | null
+  loopScopeId?: string | null
+  loopElementId?: string | null
 }
 
 const WidgetComponent = React.memo(function WidgetComponent({
   widget,
   onRightClick,
   selectedWidgetId,
-  loopScopeSelector,
-  elementSelector,
+  loopScopeId,
+  loopElementId,
 }: WidgetProps) {
   if (!widget.visible) return null
 
   const isSelected = selectedWidgetId === widget.id
 
   // loop/element ハイライト判定（DALoopFinder.png 準拠）
-  // 単一ウィジェットで findWidget を呼んでセレクタ一致を確認する
-  const isLoopScope =
-    loopScopeSelector
-      ? findWidget([widget], loopScopeSelector) !== undefined
-      : false
-  const isLoopElement =
-    elementSelector
-      ? findWidget([widget], elementSelector) !== undefined
-      : false
+  // ID ベースで単一ウィジェットのみに付ける（全一致に付けない）
+  const isLoopScope = loopScopeId !== null && loopScopeId !== undefined && loopScopeId === widget.id
+  const isLoopElement = loopElementId !== null && loopElementId !== undefined && loopElementId === widget.id
 
   const handleRightClick = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -88,8 +84,8 @@ const WidgetComponent = React.memo(function WidgetComponent({
   const childProps = {
     onRightClick,
     selectedWidgetId,
-    loopScopeSelector,
-    elementSelector,
+    loopScopeId,
+    loopElementId,
   }
 
   switch (widget.type) {
@@ -297,10 +293,16 @@ interface MockAppViewProps {
   currentTick: number
   onRightClick?: (widget: AppWidget, e: React.MouseEvent) => void
   selectedWidgetId?: string | null
-  /** ForEach 選択中ハイライト: スコープ要素セレクタ（青枠 + loop タグ） */
-  loopScopeSelector?: string | null
-  /** ForEach 選択中ハイライト: 最初の要素セレクタ（緑枠 + element タグ） */
-  elementSelector?: string | null
+  /**
+   * ForEach 選択中ハイライト（DALoopFinder.png 準拠）:
+   *   loopScopeId  = スコープに一致した最初の 1 ウィジェットの id → 青枠 + 「loop」タグ
+   *   loopElementId = スコープ配下の最初の 1 エレメントの id → 緑枠 + 「element」タグ
+   *
+   * RecorderView 側でセレクタを解決して ID として渡すことで、
+   * 全一致ウィジェットにバッジが付く問題を防ぐ。
+   */
+  loopScopeId?: string | null
+  loopElementId?: string | null
 }
 
 export default React.memo(function MockAppView({
@@ -308,8 +310,8 @@ export default React.memo(function MockAppView({
   currentTick,
   onRightClick,
   selectedWidgetId,
-  loopScopeSelector,
-  elementSelector,
+  loopScopeId,
+  loopElementId,
 }: MockAppViewProps) {
   const widgets = applyTimeline(app, currentTick)
 
@@ -358,8 +360,8 @@ export default React.memo(function MockAppView({
               widget={widget}
               onRightClick={onRightClick}
               selectedWidgetId={selectedWidgetId}
-              loopScopeSelector={loopScopeSelector}
-              elementSelector={elementSelector}
+              loopScopeId={loopScopeId}
+              loopElementId={loopElementId}
             />
           ))}
           {widgets.length === 0 && (

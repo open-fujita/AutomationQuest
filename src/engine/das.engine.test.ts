@@ -648,8 +648,17 @@ describe('D4: 動くリストを数える', () => {
     expect(sim.data['品目']?.length ?? 0).toBe(itemCount)
   })
 
-  it('requireForEachScope が For Each + スコープ設定を確認する', () => {
+  // ---- requireForEachScope / requireRelativeSelector（実行結果ベース判定）------
+
+  it('requireForEachScope: 正しいコンテナにループを作り実行すると true', () => {
+    // 3 件のリストが tick=2,4,6 で追加される。GuardedChoice で待機してから ForEach を実行。
+    const itemCount = 3
+    const waitTick = itemCount * 2 + 1
     const robot = makeRobot([
+      makeStep('wait-gc', {
+        type: 'GuardedChoice',
+        guards: [{ type: 'timeout', seconds: waitTick, steps: [] }],
+      }),
       makeStep('foreach1', {
         type: 'ForEach',
         scopeFinder: defaultFinder('listitem[name="item-list"]'),
@@ -658,12 +667,13 @@ describe('D4: 動くリストを数える', () => {
         body: [],
       }),
     ])
-    const sim = runDasRobot(robot, makeD4App(3))
+    const sim = runDasRobot(robot, makeD4App(itemCount), { maxTick: 120 })
     const ctx = { robot, sim }
+    // スコープが解決できたので scopeMatched=true → true
     expect(requireForEachScope('label', 'hint').test(ctx)).toBe(true)
   })
 
-  it('requireRelativeSelector が相対セレクタを確認する', () => {
+  it('requireForEachScope: 未実行（EMPTY_DAS_SIM）では false', () => {
     const robot = makeRobot([
       makeStep('foreach1', {
         type: 'ForEach',
@@ -673,13 +683,58 @@ describe('D4: 動くリストを数える', () => {
         body: [],
       }),
     ])
-    const sim = runDasRobot(robot, makeD4App(3))
+    // ran=false のシムを渡す
+    const ctx = { robot, sim: { ran: false, data: {}, log: [], errors: [], totalTick: 0, guardResults: [], forEachRuns: [] } }
+    expect(requireForEachScope('label', 'hint').test(ctx)).toBe(false)
+  })
+
+  it('requireForEachScope: スコープが解決できない要素にループを作ると false', () => {
+    // item-list に対して存在しないセレクタを指定
+    const robot = makeRobot([
+      makeStep('foreach1', {
+        type: 'ForEach',
+        scopeFinder: defaultFinder('label[name="存在しない"]'),  // 解決不能
+        scopeFinderName: 'noScope',
+        elementFinder: { kind: 'component', selector: '> listitem', reuse: 'none' },
+        body: [],
+      }),
+    ])
+    const sim = runDasRobot(robot, makeD4App(3), { maxTick: 120 })
     const ctx = { robot, sim }
+    // scopeMatched=false のため false
+    expect(requireForEachScope('label', 'hint').test(ctx)).toBe(false)
+  })
+
+  it('requireRelativeSelector: 正しいコンテナ + 相対セレクタ + 2 件以上の反復で true', () => {
+    const itemCount = 3
+    const waitTick = itemCount * 2 + 1
+    const robot = makeRobot([
+      makeStep('wait-gc', {
+        type: 'GuardedChoice',
+        guards: [{ type: 'timeout', seconds: waitTick, steps: [] }],
+      }),
+      makeStep('foreach1', {
+        type: 'ForEach',
+        scopeFinder: defaultFinder('listitem[name="item-list"]'),
+        scopeFinderName: 'listScope',
+        elementFinder: { kind: 'component', selector: '> listitem', reuse: 'none' },
+        body: [],
+      }),
+    ])
+    const sim = runDasRobot(robot, makeD4App(itemCount), { maxTick: 120 })
+    const ctx = { robot, sim }
+    // 書式 OK + iterations=3 >= 2 → true
     expect(requireRelativeSelector('label', 'hint').test(ctx)).toBe(true)
   })
 
-  it('requireRelativeSelector が非相対セレクタは false を返す', () => {
+  it('requireRelativeSelector: 非相対セレクタは書式チェックで false（反復件数に依らず）', () => {
+    const itemCount = 3
+    const waitTick = itemCount * 2 + 1
     const robot = makeRobot([
+      makeStep('wait-gc', {
+        type: 'GuardedChoice',
+        guards: [{ type: 'timeout', seconds: waitTick, steps: [] }],
+      }),
       makeStep('foreach1', {
         type: 'ForEach',
         scopeFinder: defaultFinder('listitem[name="item-list"]'),
@@ -688,8 +743,50 @@ describe('D4: 動くリストを数える', () => {
         body: [],
       }),
     ])
-    const sim = runDasRobot(robot, makeD4App(3))
+    const sim = runDasRobot(robot, makeD4App(itemCount), { maxTick: 120 })
     const ctx = { robot, sim }
+    expect(requireRelativeSelector('label', 'hint').test(ctx)).toBe(false)
+  })
+
+  it('requireRelativeSelector: 無関係な要素（1 件しか反復できない）にループを作ると false', () => {
+    // label 要素の直下に listitem の子は存在しないため iterations=0 or 1
+    // makeD4App の item-list には子 listitem が追加される（iterations >= 3）が、
+    // label-title を scopeFinder にすると label.children は空 → iterations=0
+    const itemCount = 3
+    const waitTick = itemCount * 2 + 1
+    const robot = makeRobot([
+      makeStep('wait-gc', {
+        type: 'GuardedChoice',
+        guards: [{ type: 'timeout', seconds: waitTick, steps: [] }],
+      }),
+      makeStep('foreach1', {
+        type: 'ForEach',
+        // item-list は listitem 型で、その子は timeline で追加される listitem たち
+        // ここでは意図的に "item-1" という子アイテム（1 件しかない）をスコープにする
+        scopeFinder: defaultFinder('listitem[name="item-1"]'),
+        scopeFinderName: 'wrongScope',
+        // 相対セレクタ形式だが、item-1 の子に listitem は存在しない → iterations=0
+        elementFinder: { kind: 'component', selector: '> listitem', reuse: 'none' },
+        body: [],
+      }),
+    ])
+    const sim = runDasRobot(robot, makeD4App(itemCount), { maxTick: 120 })
+    const ctx = { robot, sim }
+    // scopeMatched=true だが iterations=0 < 2 → false
+    expect(requireRelativeSelector('label', 'hint').test(ctx)).toBe(false)
+  })
+
+  it('requireRelativeSelector: 未実行では false', () => {
+    const robot = makeRobot([
+      makeStep('foreach1', {
+        type: 'ForEach',
+        scopeFinder: defaultFinder('listitem[name="item-list"]'),
+        scopeFinderName: 'listScope',
+        elementFinder: { kind: 'component', selector: '> listitem', reuse: 'none' },
+        body: [],
+      }),
+    ])
+    const ctx = { robot, sim: { ran: false, data: {}, log: [], errors: [], totalTick: 0, guardResults: [], forEachRuns: [] } }
     expect(requireRelativeSelector('label', 'hint').test(ctx)).toBe(false)
   })
 
@@ -1188,6 +1285,76 @@ describe('ForEach: excludeFirst / iterationVariable', () => {
     expect(sim.data['idx']?.[1]?.index).toBe('1')
     expect(sim.data['idx']?.[2]?.index).toBe('2')
     expect(sim.errors).toHaveLength(0)
+  })
+})
+
+// ============================================================
+// 9c. ForEach: スコープ外のウィジェットは反復対象にならない（公式仕様準拠）
+//
+// 公式 c_foreachloopstep.html:
+//   「反復はスコープノードの配下にないノードをループしない」
+// スコープ外に相対セレクタ一致のウィジェットがあっても反復されないことを確認する。
+// ============================================================
+
+describe('ForEach: スコープ外ウィジェットは反復されない（公式仕様準拠）', () => {
+  /**
+   * MockApp:
+   *   - target-list: listitem（スコープ対象）
+   *       └ child-a: listitem（スコープ内・'> listitem' にマッチ）
+   *       └ child-b: listitem（スコープ内・'> listitem' にマッチ）
+   *   - outer-list: listitem（スコープ外）
+   *       └ outer-child: listitem（スコープ外・'> listitem' に構造的マッチするが反復対象外）
+   *
+   * スコープ = 'listitem[name="target-list"]' → target-list のみ
+   * エレメント = '> listitem' → target-list の直接の子のみ（outer-child は含まない）
+   */
+  function makeOutOfScopeApp(): MockApp {
+    return makeApp('テストアプリ', [
+      // スコープ対象リスト
+      makeWidget('target-list', 'listitem', { name: 'target-list' }, {
+        children: [
+          makeWidget('child-a', 'listitem', { name: 'child-a' }, { text: '対象A' }),
+          makeWidget('child-b', 'listitem', { name: 'child-b' }, { text: '対象B' }),
+        ],
+      }),
+      // スコープ外リスト（同じ型・同じ構造だがスコープ外）
+      makeWidget('outer-list', 'listitem', { name: 'outer-list' }, {
+        children: [
+          makeWidget('outer-child', 'listitem', { name: 'outer-child' }, { text: 'スコープ外' }),
+        ],
+      }),
+    ])
+  }
+
+  it('スコープ外のウィジェットは ForEach の反復対象にならない', () => {
+    const app = makeOutOfScopeApp()
+    // 反復回数を直接確認するため iterationVariable を使う
+    // body 内で ExtractValue は使わず、ループが何件回ったかを iterationVariable で記録する
+    const robot = makeRobot([
+      makeStep('foreach1', {
+        type: 'ForEach',
+        // target-list のみをスコープとして指定
+        scopeFinder: defaultFinder('listitem[name="target-list"]'),
+        scopeFinderName: 'listScope',
+        // '> listitem': target-list の直接の子のみ（child-a, child-b の 2 件）
+        elementFinder: { kind: 'component', selector: '> listitem', reuse: 'none', scopeRef: 'listScope' },
+        body: [],
+        // イテレーション変数でループ件数を記録
+        iterationVariable: true,
+        iterationVariableName: 'loopIdx',
+      }),
+    ])
+
+    const sim = runDasRobot(robot, app, { maxTick: 120 })
+
+    // スコープ内の child-a / child-b の 2 件のみ反復される（outer-child は含まない）
+    // outer-list の直接の子 outer-child を含む場合は 3 件になるため、2 件であることを確認する
+    expect(sim.data['loopIdx']?.length ?? 0).toBe(2)
+    expect(sim.errors).toHaveLength(0)
+
+    // ログにも 2 件反復が記録されている
+    const foreachLogs = sim.log.filter((l) => l.message.includes('2 件を反復'))
+    expect(foreachLogs.length).toBeGreaterThan(0)
   })
 })
 

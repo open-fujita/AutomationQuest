@@ -13,7 +13,7 @@
 
 import type { DasRobot, DasStep, GuardType, DasActionType } from '../model/dasRobot'
 import type { DasMissionCheck, DasMissionCheckCtx } from '../model/mission'
-import type { DasSimResult } from './dasSimulator'
+import type { DasSimResult, ForEachRunRecord } from './dasSimulator'
 import type { ValidationResult } from './validator'
 
 // ---- 公開型定義 -----------------------------------------------
@@ -189,7 +189,14 @@ export function forbidTimeoutOnly(
   }
 }
 
-/** For Each ステップが存在し、scopeFinder が設定されている（D4） */
+/**
+ * For Each ステップが実行時にスコープファインダーを実際に解決できた（D4）。
+ *
+ * 旧実装: scopeFinder.selector が空でなければ静的に true → どこでもクリア可能だった。
+ * 新実装: sim.forEachRuns に scopeMatched=true のエントリが存在することを要求。
+ *   - 未実行（sim.ran=false または forEachRuns が空）の場合は false → 「実行して確認」を促す。
+ *   - 無関係なコンテナ（スコープファインダーが解決できない要素）にループを作っても false。
+ */
 export function requireForEachScope(
   label: string,
   failHint: string,
@@ -199,17 +206,25 @@ export function requireForEachScope(
     label,
     failHint,
     test: (ctx) => {
-      const robot = (ctx as { robot: DasRobot; sim: DasSimResult }).robot
-      const forEachSteps = findDasActions(robot, 'ForEach')
-      return forEachSteps.some((step) => {
-        if (step.action.type !== 'ForEach') return false
-        return step.action.scopeFinder.selector.trim() !== ''
-      })
+      const sim = (ctx as { robot: DasRobot; sim: DasSimResult }).sim
+      if (!sim.ran) return false
+      return (sim.forEachRuns as ForEachRunRecord[]).some((r) => r.scopeMatched)
     },
   }
 }
 
-/** For Each の elementFinder が相対セレクタ形式（'> ' で始まる）を使っている（D4） */
+/**
+ * For Each の elementFinder が相対セレクタ形式（'>' で始まる）かつ
+ * 実行時に 2 件以上を反復できた（D4）。
+ *
+ * 旧実装: elementFinder.selector が '>' で始まるという書式チェックのみ →
+ *   右クリック挿入で自動生成される '> type' があれば即 true。
+ * 新実装: 書式チェック（'>' 始まり）AND 実行時 iterations >= 2 の両方を要求。
+ *   - 未実行（sim.ran=false）のとき false。
+ *   - 正しいリストコンテナ以外の要素（label 等）にループを作っても
+ *     iterations が 1 以下になるため false。
+ *   - コンテナが空（iterations=0）のときも false。
+ */
 export function requireRelativeSelector(
   label: string,
   failHint: string,
@@ -219,11 +234,18 @@ export function requireRelativeSelector(
     label,
     failHint,
     test: (ctx) => {
-      const robot = (ctx as { robot: DasRobot; sim: DasSimResult }).robot
+      const { robot, sim } = ctx as { robot: DasRobot; sim: DasSimResult }
+      if (!sim.ran) return false
       const forEachSteps = findDasActions(robot, 'ForEach')
       return forEachSteps.some((step) => {
         if (step.action.type !== 'ForEach') return false
-        return step.action.elementFinder.selector.trim().startsWith('>')
+        // 書式チェック: '>' で始まる相対セレクタか
+        if (!step.action.elementFinder.selector.trim().startsWith('>')) return false
+        // 実行チェック: このステップが実際に 2 件以上反復できたか
+        const run = (sim.forEachRuns as ForEachRunRecord[]).find(
+          (r) => r.stepId === step.id,
+        )
+        return run !== undefined && run.scopeMatched && run.iterations >= 2
       })
     },
   }
