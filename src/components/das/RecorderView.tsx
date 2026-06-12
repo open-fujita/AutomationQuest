@@ -8,7 +8,7 @@
 // アクセシビリティ: tab 切り替え aria-selected / コンテキストメニュー role="menu"
 // ============================================================
 
-import React, { useState, useCallback, useRef, useEffect } from 'react'
+import React, { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react'
 import type { AppWidget, MockApp } from '../../model/mockApp'
 import { applyTimeline } from '../../model/mockApp'
 import type { DasFinder, Guard } from '../../model/dasRobot'
@@ -163,6 +163,19 @@ function ContextMenu({
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
 
+  // ビューポートクランプ後の表示座標。初回測定前は visibility:hidden で非表示にしてチラつきを防ぐ
+  const [adjustedPos, setAdjustedPos] = useState<{ x: number; y: number } | null>(null)
+
+  useLayoutEffect(() => {
+    const el = menuRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const margin = 8
+    const clampedY = Math.max(margin, Math.min(position.y, window.innerHeight - rect.height - margin))
+    const clampedX = Math.max(margin, Math.min(position.x, window.innerWidth - rect.width - margin))
+    setAdjustedPos({ x: clampedX, y: clampedY })
+  }, [position])
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -198,7 +211,15 @@ function ContextMenu({
       role="menu"
       aria-label="ステップ挿入メニュー"
       className="fixed z-50 rounded-md border border-ds-border2 bg-ds-panel py-1 shadow-xl"
-      style={{ top: position.y, left: position.x, minWidth: '240px' }}
+      style={{
+        top: adjustedPos?.y ?? position.y,
+        left: adjustedPos?.x ?? position.x,
+        minWidth: '240px',
+        maxHeight: 'calc(100vh - 16px)',
+        overflowY: 'auto',
+        // 初回 useLayoutEffect 測定前は非表示にしてチラつきを防ぐ
+        visibility: adjustedPos ? 'visible' : 'hidden',
+      }}
     >
       {/* 対象ウィジェット情報 */}
       <div className="border-b border-ds-border/50 px-3 py-1.5">
