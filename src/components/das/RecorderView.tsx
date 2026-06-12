@@ -10,7 +10,7 @@
 
 import React, { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react'
 import type { AppWidget, MockApp } from '../../model/mockApp'
-import { applyTimeline, findWidget } from '../../model/mockApp'
+import { applyTimeline, findWidget, findWidgetPath } from '../../model/mockApp'
 import type { DasFinder, Guard } from '../../model/dasRobot'
 import { GUARD_TYPE_LABELS } from '../../model/dasRobot'
 import { useDasRobotStore } from '../../store/dasRobotStore'
@@ -43,6 +43,38 @@ function generateFinder(widget: AppWidget): DasFinder {
     selector: generateSelector(widget),
     reuse: 'none',
   }
+}
+
+// ---- スコープナビゲーションボタン（ツールバー用）--------------
+
+interface ScopeNavButtonProps {
+  /** SVG アイコン要素（緑の矢印風） */
+  icon: React.ReactNode
+  /** ツールチップ文言（実機の公式文言に合わせる） */
+  label: string
+  disabled: boolean
+  onClick: () => void
+}
+
+function ScopeNavButton({ icon, label, disabled, onClick }: ScopeNavButtonProps) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={[
+        'flex h-6 w-6 items-center justify-center rounded text-[13px] transition-colors',
+        'border',
+        disabled
+          ? 'border-das-border text-das-textDim/40 cursor-not-allowed'
+          : 'border-green-400 bg-green-50 text-green-700 hover:bg-green-100 active:bg-green-200 cursor-pointer',
+      ].join(' ')}
+    >
+      {icon}
+    </button>
+  )
 }
 
 // ---- 要素ツリー表示 ----------------------------------------
@@ -142,7 +174,10 @@ interface ContextMenuProps {
   onInsertClick: () => void
   onInsertExtract: () => void
   onInsertEnterText: () => void
-  onInsertForEach: () => void
+  /** 兄弟系: scope = 親要素, element = > W.type */
+  onInsertForEachSiblings: (() => void) | null
+  /** 子ノード系: scope = W 自身, element = > 最初の子の type */
+  onInsertForEachChildren: (() => void) | null
   onInsertGuard: (guardType: 'locationFound' | 'applicationFound') => void
 }
 
@@ -158,7 +193,8 @@ function ContextMenu({
   onInsertClick,
   onInsertExtract,
   onInsertEnterText,
-  onInsertForEach,
+  onInsertForEachSiblings,
+  onInsertForEachChildren,
   onInsertGuard,
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
@@ -193,15 +229,31 @@ function ContextMenu({
     }
   }, [onClose])
 
-  const menuItems: { label: string; icon: string; action: () => void; hint?: string }[] = [
+  const menuItems: { label: string; icon: string; action: (() => void) | null; hint?: string; disabled?: boolean }[] = [
     { label: 'クリック', icon: '👆', action: () => { onInsertClick(); onClose() }, hint: '選択した要素をクリックするステップを追加' },
     { label: '値を抽出', icon: '🔎', action: () => { onInsertExtract(); onClose() }, hint: '選択した要素から値を抽出するステップを追加' },
     { label: 'テキストを入力', icon: '⌨', action: () => { onInsertEnterText(); onClose() }, hint: '選択した要素にテキストを入力するステップを追加' },
     {
-      label: 'For Each ループ（すべての兄弟）',
+      // 兄弟系: 右クリックした要素 W の親をスコープ、W.type を繰り返す
+      // scope = 親要素のセレクタ、element = > W.type
+      label: `For Each ループ（各 [${widget.type}] の兄弟）`,
       icon: '↻',
-      action: () => { onInsertForEach(); onClose() },
-      hint: 'この要素の兄弟要素を繰り返すForEachステップを追加',
+      action: onInsertForEachSiblings
+        ? () => { onInsertForEachSiblings!(); onClose() }
+        : null,
+      hint: `この要素の親をスコープに設定し、兄弟の ${widget.type} 要素を全件繰り返す ForEach ステップを追加`,
+      disabled: onInsertForEachSiblings === null,
+    },
+    {
+      // 子ノード系: 右クリックした要素 W 自身をスコープ、W の子要素を繰り返す
+      // scope = W のセレクタ、element = > 最初の子の type
+      label: `For Each ループ（各 [${widget.children[0]?.type ?? 'child'}] の子ノード）`,
+      icon: '↺',
+      action: onInsertForEachChildren
+        ? () => { onInsertForEachChildren!(); onClose() }
+        : null,
+      hint: `この要素自身をスコープに設定し、直接の子要素 (${widget.children[0]?.type ?? 'child'}) を全件繰り返す ForEach ステップを追加`,
+      disabled: onInsertForEachChildren === null,
     },
   ]
 
@@ -233,8 +285,14 @@ function ContextMenu({
           <button
             key={item.label}
             role="menuitem"
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-das-text hover:bg-das-panelAlt"
-            onClick={item.action}
+            disabled={item.disabled}
+            className={[
+              'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px]',
+              item.disabled
+                ? 'cursor-not-allowed text-das-textDim/50'
+                : 'text-das-text hover:bg-das-panelAlt',
+            ].join(' ')}
+            onClick={item.disabled || !item.action ? undefined : item.action}
             title={item.hint}
           >
             <span className="w-5 shrink-0 text-center">{item.icon}</span>
@@ -281,6 +339,11 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
   const addStep = useDasRobotStore((s) => s.addStep)
   const selectedStepId = useDasRobotStore((s) => s.selectedStepId)
   const robot = useDasRobotStore((s) => s.robot)
+
+  // ---- スコープナビゲーション用ヘルパー -------------------------
+  // 現在 tick のウィジェットフラット一覧（兄弟取得に使う）
+  // ※ この関数は純粋なので render 内で inline 計算して OK
+  //    ただし毎回実行するとコストがかかるため、必要時のみ呼ぶ
 
   // 選択ステップが ForEach の場合に loop/element ハイライト用ウィジェット ID を導出する
   // （DALoopFinder.png 準拠: スコープ = 青「loop」バッジ 1 個、最初の要素 = 緑「element」バッジ 1 個）
@@ -349,6 +412,79 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
     }
   })()
 
+  // ---- タグパス（祖先パス）の計算 --------------------------------
+  // selectedWidget が存在する場合にのみ計算する
+  const tagPath: AppWidget[] = (() => {
+    if (!app || !selectedWidget) return []
+    const widgets = applyTimeline(app, currentTick)
+    return findWidgetPath(widgets, selectedWidget.id) ?? []
+  })()
+
+  // ---- タグパスセグメントの文字列変換 ---------------------------
+  // type[index] 形式: 同型兄弟が複数いるときのみ [n] を付与
+  // ancestors: そのウィジェットが属する親の children 配列
+  function tagSegmentLabel(widget: AppWidget, siblings: AppWidget[]): string {
+    const sameType = siblings.filter((s) => s.type === widget.type)
+    if (sameType.length <= 1) return widget.type
+    const idx = sameType.indexOf(widget)
+    return `${widget.type}[${idx + 1}]`
+  }
+
+  // ---- スコープ操作: 現在 tick のウィジェットを取得 -------------
+  function getWidgets(): AppWidget[] {
+    if (!app) return []
+    return applyTimeline(app, currentTick)
+  }
+
+  // 「1 レベル外側のタグを選択」（親へ）
+  const canSelectParent = tagPath.length >= 2
+  const handleSelectParent = useCallback(() => {
+    if (!app || !selectedWidget) return
+    const path = findWidgetPath(applyTimeline(app, currentTick), selectedWidget.id)
+    if (!path || path.length < 2) return
+    setSelectedWidget(path[path.length - 2])
+  }, [app, selectedWidget, currentTick])
+
+  // 「1 レベル内側のタグを選択」（最初の可視の子へ）
+  const firstVisibleChild = selectedWidget?.children.find((c) => c.visible) ?? null
+  const canSelectChild = !!firstVisibleChild
+  const handleSelectChild = useCallback(() => {
+    if (!firstVisibleChild) return
+    setSelectedWidget(firstVisibleChild)
+  }, [firstVisibleChild])
+
+  // 「前のタグを選択」（前の兄弟）・「次のタグを選択」（次の兄弟）
+  // 兄弟取得: tagPath の親の children から visible なもの
+  const visibleSiblings: AppWidget[] = (() => {
+    if (tagPath.length < 2) {
+      // ルート要素の場合は appWidgets のルートが兄弟
+      return getWidgets().filter((w) => w.visible)
+    }
+    return (tagPath[tagPath.length - 2]?.children ?? []).filter((w) => w.visible)
+  })()
+  const siblingIndex = selectedWidget
+    ? visibleSiblings.findIndex((s) => s.id === selectedWidget.id)
+    : -1
+  const canSelectPrev = siblingIndex > 0
+  const canSelectNext = siblingIndex >= 0 && siblingIndex < visibleSiblings.length - 1
+
+  const handleSelectPrev = useCallback(() => {
+    if (siblingIndex <= 0) return
+    setSelectedWidget(visibleSiblings[siblingIndex - 1])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siblingIndex, visibleSiblings])
+
+  const handleSelectNext = useCallback(() => {
+    if (siblingIndex < 0 || siblingIndex >= visibleSiblings.length - 1) return
+    setSelectedWidget(visibleSiblings[siblingIndex + 1])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siblingIndex, visibleSiblings])
+
+  // アプリ画面での要素左クリック（選択）
+  const handleLeftClick = useCallback((widget: AppWidget, _e: React.MouseEvent) => {
+    setSelectedWidget(widget)
+  }, [])
+
   // アプリ画面での要素右クリック
   const handleRightClick = useCallback((widget: AppWidget, e: React.MouseEvent) => {
     e.preventDefault()
@@ -410,27 +546,73 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
     addStep({ type: 'EnterText', finder, text: '' })
   }, [contextMenu, addStep])
 
-  const handleInsertForEach = useCallback(() => {
-    if (!contextMenu) return
+  // ---- For Each ループ（兄弟系）----------------------------------
+  // 右クリックした要素 W の「親」をスコープにして、W と同じ type の兄弟を全件反復する。
+  // 正しい仕様:
+  //   scope  = 親要素のセレクタ（type + name 属性）
+  //   element = > W.type   （親の直接の子 = 兄弟行を 1 件ずつ反復）
+  const handleInsertForEachSiblings = useCallback((): (() => void) | null => {
+    if (!app || !contextMenu) return null
     const widget = contextMenu.widget
-    // スコープ: 親要素のセレクタ（兄弟を含むリスト親）を想定
-    // 単純化: 選択要素の type を scopeFinder に、'> type' を elementFinder に使う
-    const scopeSelector = widget.type + (widget.attrs['name'] ? `[name="${widget.attrs['name']}"]` : '')
-    const elementSelector = `> ${widget.type}`
-    const scopeFinder: DasFinder = { kind: 'component', selector: scopeSelector, reuse: 'none' }
-    const elementFinder: DasFinder = {
-      kind: 'component',
-      selector: elementSelector,
-      reuse: 'none',
-      scopeRef: 'scope1',
+    const widgets = applyTimeline(app, currentTick)
+    const path = findWidgetPath(widgets, widget.id)
+    // path[-2] が親、path[-1] が W 自身
+    if (!path || path.length < 2) return null  // 親なし（window 等）は null
+    const parent = path[path.length - 2]
+
+    return () => {
+      // 親要素のセレクタを生成（type + name 属性があれば付与）
+      const parentSelector =
+        parent.type + (parent.attrs['name'] ? `[name="${parent.attrs['name']}"]` : '')
+      const elementSelector = `> ${widget.type}`
+      const scopeFinder: DasFinder = { kind: 'component', selector: parentSelector, reuse: 'none' }
+      const elementFinder: DasFinder = {
+        kind: 'component',
+        selector: elementSelector,
+        reuse: 'none',
+        scopeRef: 'scope1',
+      }
+      addStep({
+        type: 'ForEach',
+        scopeFinder,
+        scopeFinderName: 'scope1',
+        elementFinder,
+        body: [],
+      })
     }
-    addStep({
-      type: 'ForEach',
-      scopeFinder,
-      scopeFinderName: 'scope1',
-      elementFinder,
-      body: [],
-    })
+  }, [app, contextMenu, currentTick, addStep])
+
+  // ---- For Each ループ（子ノード系）-------------------------------
+  // 右クリックした要素 W 自身をスコープにして、W の直接の子を全件反復する。
+  // 正しい仕様:
+  //   scope  = W のセレクタ（type + name 属性）
+  //   element = > 最初の可視の子の type
+  const handleInsertForEachChildren = useCallback((): (() => void) | null => {
+    if (!contextMenu) return null
+    const widget = contextMenu.widget
+    // 子が存在しない場合は null（メニュー項目を disabled にする）
+    const firstChild = widget.children.find((c) => c.visible)
+    if (!firstChild) return null
+
+    return () => {
+      const scopeSelector =
+        widget.type + (widget.attrs['name'] ? `[name="${widget.attrs['name']}"]` : '')
+      const elementSelector = `> ${firstChild.type}`
+      const scopeFinder: DasFinder = { kind: 'component', selector: scopeSelector, reuse: 'none' }
+      const elementFinder: DasFinder = {
+        kind: 'component',
+        selector: elementSelector,
+        reuse: 'none',
+        scopeRef: 'scope1',
+      }
+      addStep({
+        type: 'ForEach',
+        scopeFinder,
+        scopeFinderName: 'scope1',
+        elementFinder,
+        body: [],
+      })
+    }
   }, [contextMenu, addStep])
 
   const handleInsertGuard = useCallback((guardType: 'locationFound' | 'applicationFound') => {
@@ -470,24 +652,85 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
       className="!bg-das-panel [&>header]:!bg-das-panelAlt [&>header]:!border-das-border [&>header_h2]:!text-das-text [&>header_span]:!text-das-textDim"
     >
       <div className="flex h-full flex-col">
-        {/* タブ切り替え */}
-        <div className="flex shrink-0 border-b border-das-border bg-das-panelAlt px-2 pt-1">
-          {(['app', 'tree'] as const).map((tab) => (
-            <button
-              key={tab}
-              role="tab"
-              aria-selected={activeTab === tab}
-              onClick={() => setActiveTab(tab)}
-              className={[
-                'rounded-t px-3 py-1 text-[12px] transition-colors',
-                activeTab === tab
-                  ? 'bg-das-bg text-das-text'
-                  : 'text-das-textDim hover:text-das-text',
-              ].join(' ')}
-            >
-              {tab === 'app' ? '🖥 アプリ画面' : '🌳 要素ツリー'}
-            </button>
-          ))}
+        {/* タブ切り替え + スコープ操作ツールバー（実機 DS のタブ行準拠） */}
+        <div className="flex shrink-0 items-center border-b border-das-border bg-das-panelAlt px-2 pt-1 gap-2">
+          {/* タブ */}
+          <div className="flex">
+            {(['app', 'tree'] as const).map((tab) => (
+              <button
+                key={tab}
+                role="tab"
+                aria-selected={activeTab === tab}
+                onClick={() => setActiveTab(tab)}
+                className={[
+                  'rounded-t px-3 py-1 text-[12px] transition-colors',
+                  activeTab === tab
+                    ? 'bg-das-bg text-das-text'
+                    : 'text-das-textDim hover:text-das-text',
+                ].join(' ')}
+              >
+                {tab === 'app' ? '🖥 アプリ画面' : '🌳 要素ツリー'}
+              </button>
+            ))}
+          </div>
+
+          {/* セパレータ */}
+          <span className="text-das-border2 select-none text-[12px]" aria-hidden="true">|</span>
+
+          {/* スコープ操作ツールバー（実機 DS の緑矢印アイコン群） */}
+          <div
+            role="toolbar"
+            aria-label="スコープ操作"
+            className="flex items-center gap-0.5 pb-1"
+          >
+            {/* 1 レベル外側のタグを選択 (↖ 親) */}
+            <ScopeNavButton
+              icon={
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="currentColor">
+                  {/* 左上方向の矢印（実機の ↖ に近い斜め上左） */}
+                  <path d="M3 3h5v1.5H5.06l5.47 5.47-1.06 1.06L4 5.56V7.5H2.5V3H3z"/>
+                  <rect x="2" y="2" width="6" height="1.5" rx="0.4"/>
+                </svg>
+              }
+              label="1 レベル外側のタグを選択"
+              disabled={!canSelectParent}
+              onClick={handleSelectParent}
+            />
+            {/* 1 レベル内側のタグを選択 (↘ 子) */}
+            <ScopeNavButton
+              icon={
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="currentColor">
+                  <path d="M13 13H8v-1.5h1.94L4.47 6.03 5.53 4.97 11 10.44V8.5h1.5V13H13z"/>
+                  <rect x="8" y="12.5" width="6" height="1.5" rx="0.4"/>
+                </svg>
+              }
+              label="1 レベル内側のタグを選択"
+              disabled={!canSelectChild}
+              onClick={handleSelectChild}
+            />
+            {/* 前のタグを選択 (← 前兄弟) */}
+            <ScopeNavButton
+              icon={
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="currentColor">
+                  <path d="M9.5 4l-5 4 5 4V9.5H14v-3H9.5V4z"/>
+                </svg>
+              }
+              label="前のタグを選択"
+              disabled={!canSelectPrev}
+              onClick={handleSelectPrev}
+            />
+            {/* 次のタグを選択 (→ 次兄弟) */}
+            <ScopeNavButton
+              icon={
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="currentColor">
+                  <path d="M6.5 4l5 4-5 4V9.5H2v-3h4.5V4z"/>
+                </svg>
+              }
+              label="次のタグを選択"
+              disabled={!canSelectNext}
+              onClick={handleSelectNext}
+            />
+          </div>
         </div>
 
         {/* コンテンツエリア */}
@@ -496,6 +739,7 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
             <MockAppView
               app={app}
               currentTick={currentTick}
+              onLeftClick={handleLeftClick}
               onRightClick={handleRightClick}
               selectedWidgetId={selectedWidget?.id}
               loopScopeId={loopScopeId}
@@ -525,15 +769,53 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
           )}
         </div>
 
-        {/* ステータスバー（マウス座標・デバイス状態演出） */}
-        <div className="flex shrink-0 items-center gap-4 border-t border-das-border bg-das-panelAlt px-3 py-0.5 text-[10px] text-das-textDim">
-          <span>x: {mousePos.x}, y: {mousePos.y}</span>
-          {selectedWidget && (
-            <span className="truncate font-mono text-das-accent2">
-              選択: {generateSelector(selectedWidget)}
+        {/* タグパスバー（実機 DS 最下部のパスバー準拠） */}
+        <div
+          className="flex shrink-0 items-center gap-0 border-t border-das-border bg-das-panelAlt px-2 py-0.5 text-[10px] overflow-x-auto"
+          role="navigation"
+          aria-label="タグパス"
+        >
+          {tagPath.length === 0 ? (
+            <span className="text-das-textDim italic">
+              {selectedWidget ? '...' : '要素をクリックして選択'}
             </span>
+          ) : (
+            tagPath.map((seg, i) => {
+              // 親の children を求める（セグメントラベルの [n] 計算用）
+              const parentChildren =
+                i === 0
+                  ? (app ? applyTimeline(app, currentTick) : [])
+                  : tagPath[i - 1].children
+              const label = tagSegmentLabel(seg, parentChildren)
+              const isLast = i === tagPath.length - 1
+              return (
+                <React.Fragment key={seg.id}>
+                  {i > 0 && (
+                    <span className="mx-0.5 shrink-0 text-das-textDim/60 select-none" aria-hidden="true">
+                      .
+                    </span>
+                  )}
+                  <button
+                    className={[
+                      'shrink-0 rounded px-1 py-0 font-mono transition-colors',
+                      isLast
+                        ? 'font-bold text-das-text bg-das-accent2/10 border border-das-accent2/30'
+                        : 'text-das-textDim hover:text-das-text hover:bg-das-panelAlt',
+                    ].join(' ')}
+                    onClick={() => setSelectedWidget(seg)}
+                    title={`${label} を選択`}
+                    aria-current={isLast ? 'true' : undefined}
+                  >
+                    {label}
+                  </button>
+                </React.Fragment>
+              )
+            })
           )}
-          <span className="ml-auto">tick: {currentTick} / デバイス: ローカル</span>
+          {/* 右端: tick・デバイス情報（実機準拠の演出） */}
+          <span className="ml-auto shrink-0 text-das-textDim/60 pl-2">
+            x:{mousePos.x} y:{mousePos.y}
+          </span>
         </div>
       </div>
 
@@ -546,7 +828,8 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
           onInsertClick={handleInsertClick}
           onInsertExtract={handleInsertExtract}
           onInsertEnterText={handleInsertEnterText}
-          onInsertForEach={handleInsertForEach}
+          onInsertForEachSiblings={handleInsertForEachSiblings()}
+          onInsertForEachChildren={handleInsertForEachChildren()}
           onInsertGuard={handleInsertGuard}
         />
       )}

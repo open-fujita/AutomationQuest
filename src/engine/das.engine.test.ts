@@ -823,6 +823,157 @@ describe('D4: 動くリストを数える', () => {
 })
 
 // ============================================================
+// 6b. D4 実データ構造: 右クリック相当の For Each 生成検証
+//
+// D4 の実際の mockApp 構造:
+//   window[name="仕入れ管理システム"]
+//     └ table[name="仕入れ一覧"]
+//         └ listitem[name="ITEM-001"] ... listitem[name="ITEM-003"]
+//
+// 修正後メニューで生成される2パターンを検証する:
+//   (a) 「各 [listitem] の兄弟」（listitem を右クリック）
+//       scope  = table[name="仕入れ一覧"]（親要素）
+//       element = > listitem
+//   (b) 「各 [listitem] の子ノード」（table を右クリック）
+//       scope  = table[name="仕入れ一覧"]（W 自身）
+//       element = > listitem（最初の子の type）
+// ============================================================
+
+describe('D4 実データ構造: 右クリック相当の For Each 生成検証', () => {
+  /** D4 mockApp の初期状態（3 件）を再現 */
+  function makeD4RealApp(): MockApp {
+    const items = [
+      { id: 'ITEM-001', name: 'コピー用紙 A4' },
+      { id: 'ITEM-002', name: 'ボールペン 黒' },
+      { id: 'ITEM-003', name: 'クリアファイル' },
+    ]
+    const listItems: AppWidget[] = items.map((item, i) => ({
+      id: `list-item-${i}`,
+      type: 'listitem' as const,
+      attrs: { name: item.id, class: 'purchase-item' },
+      visible: true,
+      children: [
+        {
+          id: `cell-name-${i}`,
+          type: 'label' as const,
+          attrs: { name: '品目名', col: '品目名', value: item.name },
+          text: item.name,
+          visible: true,
+          children: [],
+        },
+      ],
+    }))
+    return {
+      id: 'purchase-list',
+      windowTitle: '仕入れ管理システム',
+      widgets: [
+        {
+          id: 'main-window',
+          type: 'window',
+          attrs: { title: '仕入れ管理システム', name: '仕入れ管理システム' },
+          visible: true,
+          children: [
+            {
+              id: 'list-container',
+              type: 'table',
+              attrs: { name: '仕入れ一覧', class: 'purchase-list' },
+              visible: true,
+              children: listItems,
+            },
+          ],
+        },
+      ],
+      timeline: [],
+    }
+  }
+
+  it('(a) listitem 右クリック相当: scope=table, element="> listitem" で requireForEachScope が true', () => {
+    // 「各 [listitem] の兄弟」メニュー相当
+    // 右クリック対象 = listitem → 親 = table[name="仕入れ一覧"]
+    const app = makeD4RealApp()
+    const robot = makeRobot([
+      makeStep('foreach1', {
+        type: 'ForEach',
+        scopeFinder: defaultFinder('table[name="仕入れ一覧"]'),
+        scopeFinderName: 'scope1',
+        elementFinder: { kind: 'component', selector: '> listitem', reuse: 'none', scopeRef: 'scope1' },
+        body: [],
+      }),
+    ])
+    const sim = runDasRobot(robot, app, { maxTick: 120 })
+    const ctx = { robot, sim }
+    // スコープ解決成功 → requireForEachScope = true
+    expect(requireForEachScope('label', 'hint').test(ctx)).toBe(true)
+    // 相対セレクタ + 3件反復 >= 2 → requireRelativeSelector = true
+    expect(requireRelativeSelector('label', 'hint').test(ctx)).toBe(true)
+  })
+
+  it('(a) listitem 右クリック相当: 3 件以上の listitem が反復される', () => {
+    const app = makeD4RealApp()
+    const robot = makeRobot([
+      makeStep('foreach1', {
+        type: 'ForEach',
+        scopeFinder: defaultFinder('table[name="仕入れ一覧"]'),
+        scopeFinderName: 'scope1',
+        elementFinder: { kind: 'component', selector: '> listitem', reuse: 'none', scopeRef: 'scope1' },
+        body: [
+          makeStep('extract-body', {
+            type: 'ExtractValue',
+            finder: { kind: 'component', selector: 'label[name="品目名"]', reuse: 'none', scopeRef: 'scope1' },
+            toVariable: '品目',
+            attribute: 'text',
+          }),
+        ],
+      }),
+    ])
+    const sim = runDasRobot(robot, app, { maxTick: 120 })
+    // 3 件の listitem × 1 件の label = 3 件抽出
+    expect((sim.data['品目']?.length ?? 0)).toBeGreaterThanOrEqual(3)
+    expect(sim.errors).toHaveLength(0)
+  })
+
+  it('(b) table 右クリック相当: scope=table 自身, element="> listitem" で requireForEachScope が true', () => {
+    // 「各 [listitem] の子ノード」メニュー相当
+    // 右クリック対象 = table[name="仕入れ一覧"] → scope = table 自身
+    const app = makeD4RealApp()
+    const robot = makeRobot([
+      makeStep('foreach1', {
+        type: 'ForEach',
+        scopeFinder: defaultFinder('table[name="仕入れ一覧"]'),
+        scopeFinderName: 'scope1',
+        elementFinder: { kind: 'component', selector: '> listitem', reuse: 'none', scopeRef: 'scope1' },
+        body: [],
+      }),
+    ])
+    const sim = runDasRobot(robot, app, { maxTick: 120 })
+    const ctx = { robot, sim }
+    expect(requireForEachScope('label', 'hint').test(ctx)).toBe(true)
+    expect(requireRelativeSelector('label', 'hint').test(ctx)).toBe(true)
+  })
+
+  it('旧バグ再現: scope=listitem, element="> listitem" では 0 件になる（requireRelativeSelector = false）', () => {
+    // 旧コードの動作を検証: listitem 自身をスコープにして > listitem を探すと
+    // listitem の子に listitem はいないので iterations = 0 → false
+    const app = makeD4RealApp()
+    const robot = makeRobot([
+      makeStep('foreach1', {
+        type: 'ForEach',
+        // 旧コードが生成していた誤った構成: scope = listitem[name="ITEM-001"], element = > listitem
+        scopeFinder: defaultFinder('listitem[name="ITEM-001"]'),
+        scopeFinderName: 'badScope',
+        elementFinder: { kind: 'component', selector: '> listitem', reuse: 'none', scopeRef: 'badScope' },
+        body: [],
+      }),
+    ])
+    const sim = runDasRobot(robot, app, { maxTick: 120 })
+    const ctx = { robot, sim }
+    // listitem[name="ITEM-001"] の直接の子に listitem はいない（子は label）
+    // iterations = 0 < 2 → false
+    expect(requireRelativeSelector('label', 'hint').test(ctx)).toBe(false)
+  })
+})
+
+// ============================================================
 // 7. D5 シナリオ: 列シャッフル後に座標固定で失敗 / 属性セレクタで成功
 // ============================================================
 

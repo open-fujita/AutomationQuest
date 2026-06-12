@@ -201,6 +201,29 @@ export function applyTimeline(app: MockApp, currentTick: number): AppWidget[] {
   return widgets
 }
 
+// ---- findWidgetPath -------------------------------------------
+
+/**
+ * ウィジェットツリー内で指定 id のウィジェットへの祖先パスを返す（純粋関数）。
+ * ルートから対象ウィジェット自身まで含む配列。
+ * 見つからなかった場合は null を返す。
+ *
+ * 例: [window, list, listitem[2], label]
+ */
+export function findWidgetPath(
+  widgets: AppWidget[],
+  targetId: string,
+  ancestors: AppWidget[] = [],
+): AppWidget[] | null {
+  for (const w of widgets) {
+    const path = [...ancestors, w]
+    if (w.id === targetId) return path
+    const found = findWidgetPath(w.children, targetId, path)
+    if (found) return found
+  }
+  return null
+}
+
 // ---- findWidget -----------------------------------------------
 
 /**

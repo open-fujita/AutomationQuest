@@ -16,6 +16,8 @@ import { applyTimeline } from '../../model/mockApp'
 interface WidgetProps {
   widget: AppWidget
   onRightClick?: (widget: AppWidget, e: React.MouseEvent) => void
+  /** 左クリックで選択（selectedWidgetId の更新に使う） */
+  onLeftClick?: (widget: AppWidget, e: React.MouseEvent) => void
   selectedWidgetId?: string | null
   /**
    * ForEach 選択中ハイライト（DALoopFinder.png 準拠）:
@@ -31,6 +33,7 @@ interface WidgetProps {
 const WidgetComponent = React.memo(function WidgetComponent({
   widget,
   onRightClick,
+  onLeftClick,
   selectedWidgetId,
   loopScopeId,
   loopElementId,
@@ -50,14 +53,22 @@ const WidgetComponent = React.memo(function WidgetComponent({
     onRightClick?.(widget, e)
   }
 
+  const handleLeftClick = (e: React.MouseEvent) => {
+    // 右ボタンや修飾キーは無視
+    if (e.button !== 0) return
+    e.stopPropagation()
+    onLeftClick?.(widget, e)
+  }
+
   const baseClass = [
-    'select-none cursor-context-menu',
+    'select-none cursor-pointer',
     isLoopElement
       ? 'outline outline-2 outline-green-500'
       : isLoopScope
         ? 'outline outline-2 outline-blue-500'
         : isSelected
-          ? 'ring-2 ring-blue-500'
+          // 選択枠: 実機準拠の緑（das-ok 相当 = green-600）
+          ? 'ring-2 ring-green-500'
           : '',
   ].join(' ')
 
@@ -80,9 +91,10 @@ const WidgetComponent = React.memo(function WidgetComponent({
       </span>
     ) : null
 
-  // 子ウィジェットへ loop props を伝達するヘルパー
+  // 子ウィジェットへ props を伝達するヘルパー
   const childProps = {
     onRightClick,
+    onLeftClick,
     selectedWidgetId,
     loopScopeId,
     loopElementId,
@@ -95,6 +107,7 @@ const WidgetComponent = React.memo(function WidgetComponent({
           className={`${baseClass} relative rounded border border-gray-400 bg-gray-100 p-2`}
           role="group"
           aria-label={widget.attrs['title'] ?? widget.attrs['name'] ?? 'ウィンドウ'}
+          onClick={handleLeftClick}
           onContextMenu={handleRightClick}
         >
           {loopBadge}
@@ -122,6 +135,7 @@ const WidgetComponent = React.memo(function WidgetComponent({
                 ? 'border-gray-300 bg-gray-200 text-gray-400 cursor-not-allowed'
                 : 'border-gray-400 bg-[#e1e1e1] text-gray-800 hover:bg-[#d0d0d0] active:bg-[#c0c0c0]',
             ].join(' ')}
+            onClick={handleLeftClick}
             onContextMenu={handleRightClick}
             aria-label={widget.attrs['name'] ?? widget.text}
             aria-disabled={isDisabled}
@@ -138,6 +152,7 @@ const WidgetComponent = React.memo(function WidgetComponent({
           {loopBadge}
           <label
             className={`${baseClass} text-[13px] text-gray-700`}
+            onClick={handleLeftClick}
             onContextMenu={handleRightClick}
           >
             {widget.text ?? widget.attrs['name']}
@@ -157,6 +172,7 @@ const WidgetComponent = React.memo(function WidgetComponent({
               'rounded border border-gray-400 bg-white px-2 py-0.5 text-[13px] text-gray-800',
               'read-only:bg-gray-50',
             ].join(' ')}
+            onClick={handleLeftClick}
             onContextMenu={handleRightClick}
             aria-label={widget.attrs['name']}
           />
@@ -168,6 +184,7 @@ const WidgetComponent = React.memo(function WidgetComponent({
         <div
           role="listitem"
           className={`${baseClass} relative rounded px-2 py-0.5 text-[12px] text-gray-700 hover:bg-blue-100`}
+          onClick={handleLeftClick}
           onContextMenu={handleRightClick}
         >
           {loopBadge}
@@ -190,6 +207,7 @@ const WidgetComponent = React.memo(function WidgetComponent({
             className={`${baseClass} w-full border-collapse text-[12px]`}
             role="grid"
             aria-label={widget.attrs['name']}
+            onClick={handleLeftClick}
             onContextMenu={handleRightClick}
           >
             <tbody>
@@ -210,6 +228,7 @@ const WidgetComponent = React.memo(function WidgetComponent({
         <tr
           role="row"
           className={`${baseClass} border-b border-gray-300`}
+          onClick={handleLeftClick}
           onContextMenu={handleRightClick}
         >
           {widget.children.map((cell) => (
@@ -227,6 +246,7 @@ const WidgetComponent = React.memo(function WidgetComponent({
         <td
           role="gridcell"
           className={`${baseClass} relative border border-gray-300 px-2 py-1`}
+          onClick={handleLeftClick}
           onContextMenu={handleRightClick}
         >
           {loopBadge}
@@ -238,7 +258,7 @@ const WidgetComponent = React.memo(function WidgetComponent({
       return (
         <div className="relative inline-block">
           {loopBadge}
-          <label className={`${baseClass} flex items-center gap-1.5 text-[13px] text-gray-700`} onContextMenu={handleRightClick}>
+          <label className={`${baseClass} flex items-center gap-1.5 text-[13px] text-gray-700`} onClick={handleLeftClick} onContextMenu={handleRightClick}>
             <input
               type="checkbox"
               readOnly
@@ -258,6 +278,7 @@ const WidgetComponent = React.memo(function WidgetComponent({
             baseClass,
             'relative rounded border border-yellow-400 bg-yellow-100 px-3 py-2 text-[13px] text-yellow-800',
           ].join(' ')}
+          onClick={handleLeftClick}
           onContextMenu={handleRightClick}
         >
           {loopBadge}
@@ -277,6 +298,7 @@ const WidgetComponent = React.memo(function WidgetComponent({
       return (
         <div
           className={`${baseClass} relative text-[12px] text-gray-500`}
+          onClick={handleLeftClick}
           onContextMenu={handleRightClick}
         >
           {loopBadge}
@@ -292,6 +314,8 @@ interface MockAppViewProps {
   app: MockApp
   currentTick: number
   onRightClick?: (widget: AppWidget, e: React.MouseEvent) => void
+  /** 左クリックで要素を選択する（スコープ操作の起点） */
+  onLeftClick?: (widget: AppWidget, e: React.MouseEvent) => void
   selectedWidgetId?: string | null
   /**
    * ForEach 選択中ハイライト（DALoopFinder.png 準拠）:
@@ -309,6 +333,7 @@ export default React.memo(function MockAppView({
   app,
   currentTick,
   onRightClick,
+  onLeftClick,
   selectedWidgetId,
   loopScopeId,
   loopElementId,
@@ -359,6 +384,7 @@ export default React.memo(function MockAppView({
               key={widget.id}
               widget={widget}
               onRightClick={onRightClick}
+              onLeftClick={onLeftClick}
               selectedWidgetId={selectedWidgetId}
               loopScopeId={loopScopeId}
               loopElementId={loopElementId}
