@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html,
@@ -14,22 +14,25 @@ body,
 }
 
 body {
-  background: #1e2230;
-  color: #e6e9f2;
+  /* ライトテーマ: das-panelAlt (#f0f2f5) をベース背景に */
+  background: #f0f2f5;
+  color: #1f2937;
   font-family: 'Segoe UI', 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
   overflow: hidden;
 }
 
-/* React Flow をダーク DS テーマに馴染ませる */
+/* React Flow をライト DS テーマに馴染ませる（青ロボット編用） */
 .react-flow__attribution {
   display: none;
 }
 .react-flow__edge-path {
-  stroke: #6b75a0;
+  /* ライトテーマ: 白地に見える中濃グレー */
+  stroke: #6b7280;
   stroke-width: 1.5;
 }
 .react-flow__handle {
-  background: #4a90d9;
+  /* ライトテーマ: das-accent2 (#2563eb) */
+  background: #2563eb;
   border: none;
   width: 7px;
   height: 7px;
@@ -60,13 +63,13 @@ body {
   background-color: rgb(37 99 235 / 0.12) !important;
 }
 
-/* 細いスクロールバー */
+/* 細いスクロールバー（ライトテーマ用） */
 *::-webkit-scrollbar {
   width: 9px;
   height: 9px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #3b425e;
+  background: #b0b7c3;
   border-radius: 5px;
 }
 *::-webkit-scrollbar-track {

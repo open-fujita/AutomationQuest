@@ -46,9 +46,9 @@ export default function BrowserView({ site, readOnly = false }: { site: MockSite
     <PanelFrame title="アプリケーション（ブラウザビュー）" hint="要素を右クリック →「抽出」などを割り当て" scroll>
       <div className="flex h-full flex-col" onClick={() => setMenu(null)}>
         {/* 疑似ブラウザのアドレスバー */}
-        <div className="flex shrink-0 items-center gap-2 border-b border-ds-border bg-ds-bg/60 px-3 py-1.5">
-          <span className="text-ds-textDim">🔒</span>
-          <span className="truncate rounded bg-ds-panelAlt px-2 py-0.5 text-[12px] text-ds-textDim">{site.url}</span>
+        <div className="flex shrink-0 items-center gap-2 border-b border-das-border bg-das-bg/60 px-3 py-1.5">
+          <span className="text-das-textDim">🔒</span>
+          <span className="truncate rounded bg-das-panelAlt px-2 py-0.5 text-[12px] text-das-textDim">{site.url}</span>
         </div>
 
         {/* ページ本文 */}
@@ -141,16 +141,16 @@ export default function BrowserView({ site, readOnly = false }: { site: MockSite
       {/* 右クリックメニュー */}
       {menu && (
         <div
-          className="fixed z-50 min-w-[180px] overflow-hidden rounded-md border border-ds-border2 bg-ds-panel shadow-xl"
+          className="fixed z-50 min-w-[180px] overflow-hidden rounded-md border border-das-border2 bg-das-panel shadow-xl"
           style={{ left: menu.x, top: menu.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="border-b border-ds-border px-3 py-1.5 text-[11px] text-ds-textDim">{menu.label}</div>
+          <div className="border-b border-das-border px-3 py-1.5 text-[11px] text-das-textDim">{menu.label}</div>
           {menu.options.map((o) => (
             <button
               key={o.label}
               onClick={() => choose(o.action, o.targetId)}
-              className="block w-full px-3 py-2 text-left text-[13px] text-ds-text hover:bg-ds-accent2/30"
+              className="block w-full px-3 py-2 text-left text-[13px] text-das-text hover:bg-das-accent2/30"
             >
               {o.label}
             </button>

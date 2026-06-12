@@ -24,8 +24,8 @@ const ACTION_DESC: Record<StepActionType, string> = {
 function Row({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="w-16 shrink-0 text-right text-[11px] text-ds-textDim">
-        {required && <span className="text-ds-err">*</span>}
+      <span className="w-16 shrink-0 text-right text-[11px] text-das-textDim">
+        {required && <span className="text-das-err">*</span>}
         {label}:
       </span>
       <div className="min-w-0 flex-1">{children}</div>
@@ -59,9 +59,10 @@ function nodePathFor(site: MockSite, targetId: string): string {
 type PropTab = '基本' | 'ファインダー' | 'アクション' | 'エラー処理'
 const TABS: PropTab[] = ['基本', 'ファインダー', 'アクション', 'エラー処理']
 
+// ライトテーマ用フィールド・ラベルスタイル
 const fieldCls =
-  'w-full rounded border border-ds-border bg-ds-bg px-2 py-1 text-[12px] text-ds-text outline-none focus:border-ds-accent2'
-const labelCls = 'mb-1 block text-[11px] font-semibold text-ds-textDim'
+  'w-full rounded border border-das-border bg-das-bg px-2 py-1 text-[12px] text-das-text outline-none focus:border-das-accent2'
+const labelCls = 'mb-1 block text-[11px] font-semibold text-das-textDim'
 
 // 「アクションを選択 ▼」に出すステップアクション一覧
 const ACTION_CHOICES: StepActionType[] = ['LoadPage', 'ExtractText', 'ExtractURL', 'ForEach', 'TestValue', 'Click', 'EnterText', 'SaveFile', 'ReturnValue']
@@ -85,7 +86,7 @@ export default function PropertiesPane({ site }: { site: MockSite }) {
   if (!step) {
     return (
       <PanelFrame title="プロパティ" hint="選択中ステップの設定">
-        <div className="p-4 text-[12px] text-ds-textDim">ステップまたは接続が選択されていません。</div>
+        <div className="p-4 text-[12px] text-das-textDim">ステップまたは接続が選択されていません。</div>
       </PanelFrame>
     )
   }
@@ -107,22 +108,22 @@ export default function PropertiesPane({ site }: { site: MockSite }) {
       actions={
         editable && (
           <div className="flex items-center gap-1">
-            <button onClick={() => moveStep(step.id, -1)} title="前へ" className="rounded bg-ds-panelAlt px-1.5 text-[12px] text-ds-textDim hover:text-ds-text">↑</button>
-            <button onClick={() => moveStep(step.id, 1)} title="後へ" className="rounded bg-ds-panelAlt px-1.5 text-[12px] text-ds-textDim hover:text-ds-text">↓</button>
-            <button onClick={() => removeStep(step.id)} title="削除" className="rounded bg-ds-err/20 px-1.5 text-[12px] text-ds-err hover:bg-ds-err/40">🗑</button>
+            <button onClick={() => moveStep(step.id, -1)} title="前へ" className="rounded bg-das-panelAlt px-1.5 text-[12px] text-das-textDim hover:text-das-text">↑</button>
+            <button onClick={() => moveStep(step.id, 1)} title="後へ" className="rounded bg-das-panelAlt px-1.5 text-[12px] text-das-textDim hover:text-das-text">↓</button>
+            <button onClick={() => removeStep(step.id)} title="削除" className="rounded bg-das-err/20 px-1.5 text-[12px] text-das-err hover:bg-das-err/40">🗑</button>
           </div>
         )
       }
     >
       {/* タブ */}
-      <div className="flex border-b border-ds-border bg-ds-panelAlt/60 text-[11px]">
+      <div className="flex border-b border-das-border bg-das-panelAlt/60 text-[11px]">
         {TABS.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={[
               'px-3 py-1.5',
-              tab === t ? 'border-b-2 border-ds-accent2 text-ds-text' : 'text-ds-textDim hover:text-ds-text',
+              tab === t ? 'border-b-2 border-das-accent2 text-das-text' : 'text-das-textDim hover:text-das-text',
             ].join(' ')}
           >
             {t}
@@ -131,7 +132,7 @@ export default function PropertiesPane({ site }: { site: MockSite }) {
       </div>
 
       {issue && (
-        <div className="border-b border-ds-warn/30 bg-ds-warn/10 px-3 py-1.5 text-[11px] text-ds-warn">⚠ {issue}</div>
+        <div className="border-b border-das-warn/30 bg-das-warn/10 px-3 py-1.5 text-[11px] text-das-warn">⚠ {issue}</div>
       )}
 
       <div className="space-y-3 p-3">
@@ -142,15 +143,15 @@ export default function PropertiesPane({ site }: { site: MockSite }) {
               {editable ? (
                 <input className={fieldCls} value={step.name} placeholder="(名前がありません)" onChange={(e) => updateStepName(step.id, e.target.value)} />
               ) : (
-                <div className="text-[13px] text-ds-text">{step.name}</div>
+                <div className="text-[13px] text-das-text">{step.name}</div>
               )}
             </div>
             <div>
               <label className={labelCls}>ステップクラス</label>
-              <div className="rounded border border-ds-border bg-ds-bg px-2 py-1 text-[12px] text-ds-textDim">{step.stepClass}</div>
+              <div className="rounded border border-das-border bg-das-bg px-2 py-1 text-[12px] text-das-textDim">{step.stepClass}</div>
             </div>
             {editable && (
-              <label className="flex items-center gap-2 pt-1 text-[12px] text-ds-textDim">
+              <label className="flex items-center gap-2 pt-1 text-[12px] text-das-textDim">
                 <input type="checkbox" checked={step.enabled} onChange={() => toggleEnabled(step.id)} />
                 このステップを有効にする
               </label>
@@ -160,27 +161,27 @@ export default function PropertiesPane({ site }: { site: MockSite }) {
 
         {tab === 'ファインダー' && (
           <>
-            {!editable && <div className="text-[12px] text-ds-textDim">開始/終了ステップにファインダーはありません。</div>}
+            {!editable && <div className="text-[12px] text-das-textDim">開始/終了ステップにファインダーはありません。</div>}
             {editable && !usesFinder && (
-              <div className="text-[12px] text-ds-textDim">このアクションはファインダー（対象要素）を使いません。</div>
+              <div className="text-[12px] text-das-textDim">このアクションはファインダー（対象要素）を使いません。</div>
             )}
             {editable && usesFinder && a && 'targetId' in a && (
               <>
                 <div>
                   <label className={labelCls}>{a.type === 'ForEach' ? '繰り返す対象' : '対象要素'}</label>
-                  <div className="rounded border border-ds-border bg-ds-bg px-2 py-1 text-[12px] text-ds-text">
+                  <div className="rounded border border-das-border bg-das-bg px-2 py-1 text-[12px] text-das-text">
                     {resolveTargetLabel(site, a.targetId)}
                   </div>
                   {!a.targetId && (
-                    <div className="mt-1 text-[10px] text-ds-warn">ブラウザビューで対象を右クリックして設定します</div>
+                    <div className="mt-1 text-[10px] text-das-warn">ブラウザビューで対象を右クリックして設定します</div>
                   )}
                 </div>
                 <div>
                   <label className={labelCls}>ノードパス（nodePath）</label>
-                  <div className="rounded border border-ds-border bg-ds-bg px-2 py-1 font-mono text-[12px] text-ds-accent2">
+                  <div className="rounded border border-das-border bg-das-bg px-2 py-1 font-mono text-[12px] text-das-accent2">
                     {nodePathFor(site, a.targetId)}
                   </div>
-                  <div className="mt-1 text-[10px] text-ds-textDim">
+                  <div className="mt-1 text-[10px] text-das-textDim">
                     実機 DS のファインダーは、この nodePath（タグの道筋）と属性条件で対象を特定します。右クリックで自動設定されます。
                   </div>
                 </div>
@@ -191,10 +192,10 @@ export default function PropertiesPane({ site }: { site: MockSite }) {
 
         {tab === 'アクション' && (
           <>
-            {!editable && <div className="text-[12px] text-ds-textDim">{step.name} ステップ（アクション設定なし）。</div>}
+            {!editable && <div className="text-[12px] text-das-textDim">{step.name} ステップ（アクション設定なし）。</div>}
             {editable && !a && step.kind === 'branch' && (
-              <div className="text-[12px] text-ds-textDim">
-                分岐点（○）です。ここから出る複数のブランチを<strong className="text-ds-text">上から順に</strong>実行します。各ブランチは終了（⊗）に達すると、この分岐点に戻って次のブランチへ進みます。
+              <div className="text-[12px] text-das-textDim">
+                分岐点（○）です。ここから出る複数のブランチを<strong className="text-das-text">上から順に</strong>実行します。各ブランチは終了（⊗）に達すると、この分岐点に戻って次のブランチへ進みます。
               </div>
             )}
             {editable && a && (
@@ -203,13 +204,13 @@ export default function PropertiesPane({ site }: { site: MockSite }) {
                 <div className="relative">
                   <button
                     onClick={() => setActionMenuOpen((v) => !v)}
-                    className="flex w-full items-center justify-between rounded border border-ds-border2 bg-ds-panelAlt px-3 py-1.5 text-[13px] font-semibold text-ds-text hover:border-ds-accent2"
+                    className="flex w-full items-center justify-between rounded border border-das-border2 bg-das-panelAlt px-3 py-1.5 text-[13px] font-semibold text-das-text hover:border-das-accent2"
                   >
                     <span>{ACTION_LABELS[a.type]}</span>
-                    <span className="text-ds-textDim">▼</span>
+                    <span className="text-das-textDim">▼</span>
                   </button>
                   {actionMenuOpen && (
-                    <div className="absolute z-20 mt-1 w-full overflow-hidden rounded border border-ds-border2 bg-ds-panel shadow-xl">
+                    <div className="absolute z-20 mt-1 w-full overflow-hidden rounded border border-das-border2 bg-das-panel shadow-xl">
                       {ACTION_CHOICES.map((t) => (
                         <button
                           key={t}
@@ -218,8 +219,8 @@ export default function PropertiesPane({ site }: { site: MockSite }) {
                             setActionMenuOpen(false)
                           }}
                           className={[
-                            'block w-full px-3 py-1.5 text-left text-[12px] hover:bg-ds-accent2/30',
-                            t === a.type ? 'text-ds-accent' : 'text-ds-text',
+                            'block w-full px-3 py-1.5 text-left text-[12px] hover:bg-das-accent2/30',
+                            t === a.type ? 'text-das-accent' : 'text-das-text',
                           ].join(' ')}
                         >
                           {ACTION_LABELS[t]}
@@ -231,11 +232,11 @@ export default function PropertiesPane({ site }: { site: MockSite }) {
 
                 {/* アクションの説明 + ヘルプ */}
                 <div className="flex items-start gap-2">
-                  <p className="flex-1 text-[11px] leading-relaxed text-ds-textDim">{ACTION_DESC[a.type]}</p>
-                  <span title="ヘルプ" className="cursor-help text-[13px] text-ds-accent2">?</span>
+                  <p className="flex-1 text-[11px] leading-relaxed text-das-textDim">{ACTION_DESC[a.type]}</p>
+                  <span title="ヘルプ" className="cursor-help text-[13px] text-das-accent2">?</span>
                 </div>
 
-                <div className="border-t border-ds-border" />
+                <div className="border-t border-das-border" />
 
                 {/* アクション別の項目（ラベル左・入力右） */}
                 <div className="space-y-2">
@@ -245,7 +246,7 @@ export default function PropertiesPane({ site }: { site: MockSite }) {
                         <input className={fieldCls} value={a.url} placeholder="https://..." onChange={(e) => updateAction(step.id, { url: e.target.value })} />
                       </Row>
                       <div className="pl-[72px]">
-                        <button onClick={() => updateAction(step.id, { url: site.url })} className="rounded bg-ds-panelAlt px-2 py-1 text-[11px] text-ds-accent2 hover:bg-ds-border2">
+                        <button onClick={() => updateAction(step.id, { url: site.url })} className="rounded bg-das-panelAlt px-2 py-1 text-[11px] text-das-accent2 hover:bg-das-border2">
                           このページの URL を使う
                         </button>
                       </div>
@@ -268,12 +269,12 @@ export default function PropertiesPane({ site }: { site: MockSite }) {
                           {attrOptions.map((at) => (<option key={at.name} value={at.name}>{at.name}</option>))}
                         </select>
                       </Row>
-                      <p className="pl-[72px] text-[10px] text-ds-textDim">抽出対象（ファインダー）は「ファインダー」タブで設定します。</p>
+                      <p className="pl-[72px] text-[10px] text-das-textDim">抽出対象（ファインダー）は「ファインダー」タブで設定します。</p>
                     </>
                   )}
 
                   {a.type === 'ForEach' && (
-                    <p className="text-[12px] text-ds-textDim">
+                    <p className="text-[12px] text-das-textDim">
                       繰り返す対象は「ファインダー」タブで設定します。この後ろのステップが各行に対して実行されます。
                     </p>
                   )}
@@ -354,7 +355,7 @@ export default function PropertiesPane({ site }: { site: MockSite }) {
                   )}
 
                   {a.type === 'Click' && (
-                    <p className="text-[12px] text-ds-textDim">クリック対象は「ファインダー」タブで設定します。</p>
+                    <p className="text-[12px] text-das-textDim">クリック対象は「ファインダー」タブで設定します。</p>
                   )}
 
                   {a.type === 'ReturnValue' && (
@@ -379,21 +380,21 @@ export default function PropertiesPane({ site }: { site: MockSite }) {
                 </div>
 
                 {/* オプション（実機 DS のアクションタブ下部） */}
-                <div className="border-t border-ds-border pt-2">
-                  <div className="mb-1 text-[11px] font-semibold text-ds-textDim">オプション</div>
+                <div className="border-t border-das-border pt-2">
+                  <div className="mb-1 text-[11px] font-semibold text-das-textDim">オプション</div>
                   <Row label="次の時に続行">
-                    <div className="h-14 rounded border border-ds-border bg-ds-bg" />
-                    <div className="mt-1 flex gap-1 text-[11px] text-ds-textDim">
-                      <span className="rounded bg-ds-panelAlt px-1.5">＋</span>
-                      <span className="rounded bg-ds-panelAlt px-1.5">－</span>
-                      <span className="rounded bg-ds-panelAlt px-1.5">▲</span>
-                      <span className="rounded bg-ds-panelAlt px-1.5">▼</span>
-                      <span className="rounded bg-ds-panelAlt px-1.5">🗑</span>
+                    <div className="h-14 rounded border border-das-border bg-das-bg" />
+                    <div className="mt-1 flex gap-1 text-[11px] text-das-textDim">
+                      <span className="rounded bg-das-panelAlt px-1.5">＋</span>
+                      <span className="rounded bg-das-panelAlt px-1.5">－</span>
+                      <span className="rounded bg-das-panelAlt px-1.5">▲</span>
+                      <span className="rounded bg-das-panelAlt px-1.5">▼</span>
+                      <span className="rounded bg-das-panelAlt px-1.5">🗑</span>
                     </div>
                   </Row>
                   <div className="mt-2">
                     <Row label="オプション">
-                      <button className="rounded border border-ds-border bg-ds-bg px-2 py-1 text-[11px] text-ds-textDim hover:border-ds-accent2">設定...</button>
+                      <button className="rounded border border-das-border bg-das-bg px-2 py-1 text-[11px] text-das-textDim hover:border-das-accent2">設定...</button>
                     </Row>
                   </div>
                 </div>
@@ -411,7 +412,7 @@ export default function PropertiesPane({ site }: { site: MockSite }) {
               <option>次の行へ（NextIteration）</option>
               <option>ロボットを停止</option>
             </select>
-            <div className="mt-2 text-[10px] text-ds-textDim">
+            <div className="mt-2 text-[10px] text-das-textDim">
               実機 DS では各ステップにエラー処理を設定でき、トライ-キャッチや「次の行へスキップ」で堅牢にします（M5 で本格的に学びます）。
             </div>
           </div>
