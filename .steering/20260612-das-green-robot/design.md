@@ -787,3 +787,611 @@ if (isDas) {
 4. **D3 の通知ウィンドウをどう閉じるか**: 「Application Found ガード成立 → 枝内に Click ステップ（通知の閉じるボタン）」として設計。Close ボタンのセレクタは `'button[name="閉じる"]'` 固定で MockApp に定義する。
 
 ---
+
+## 2026.1 忠実化リワーク設計（2026-06-12 追補）
+
+藤田さんの差し戻し指摘 6 点を解消するための追補設計。実機スクリーンショット（DS_2.png）と公式 2026.1 ドキュメント・UI 画像（GuardedChoiceLocation.png, add_guard2.png）に基づく。
+
+### 設計方針
+
+旧実装は「縦ツリー＋右プロパティペイン」だが、実機は「横方向フローの中にステップカードが並び、カードを展開するとインラインでフォームが出る」構造。この差は UI の根本的な描画方式の違いであり、DasWorkflowView を全面書き換えする。一方、model 層（dasRobot.ts）と engine 層（dasSimulator.ts, dasValidator.ts）は型の内部 id・シミュレーション意味論を維持し、ラベル体系とフィールド構造を 2026.1 に合わせる形で改修する。DasPropertiesPane は廃止し、その機能はステップカードのインライン展開フォームに吸収する。右パネルは「状態（変数）パネル」に役割変更する。
+
+---
+
+### アーキテクチャ判断（リワーク固有）
+
+#### 検討した選択肢 R-A: ワークフロー描画の方式
+
+| 案 | メリット | デメリット |
+|---|---|---|
+| **案 R-A-1: 既存 DasWorkflowView を段階的に横化** | 差分が小さい。既存の StepRow / NestedContent を横配置に調整 | 縦ツリー前提のインデント計算・border-l 構造と、横フロー＋SVG接続線は根本的に異なり、段階的変換は中途半端になる。ガードチョイスのレーン構造が作れない |
+| **案 R-A-2: DasWorkflowView を全面書き換え（採用）** | 実機準拠の横フロー（flexbox 横並び＋○ フローポイント＋青接続線＋カード折りたたみ/展開）を一から設計できる。ガードチョイスのレーン構造を正確に再現可能 | 旧 DasWorkflowView は完全に破棄。コード量が大きいが、旧実装のバグ（構造ズレ）を引きずらない |
+
+**採用: 案 R-A-2（全面書き換え）**。理由: 縦ツリーと横フローは描画方式が根本的に異なり、段階的変換は工数が同等かそれ以上になる割に品質が出ない。横フロー＋インライン展開カードの実機構造を一から組むほうが、結果的にシンプルで実機忠実度が高い。
+
+#### 検討した選択肢 R-B: ステップ編集の場所
+
+| 案 | メリット | デメリット |
+|---|---|---|
+| **案 R-B-1: 右ペイン（DasPropertiesPane）を維持** | 既存コードの改修量が小さい | 実機と構造が違う。実機はカード内インライン展開であり右ペインではない。差し戻し指摘の根幹 |
+| **案 R-B-2: カード内インライン展開フォーム（採用）** | 実機忠実。カード折りたたみ時はアイコン＋名前＋▼、展開時はカード内にフォームがインライン表示される | DasPropertiesPane のフォーム部品を StepCard コンポーネント内に移動する必要がある。ただし FinderDisplay / GuardRow 等のサブコンポーネントはそのまま再利用可能 |
+
+**採用: 案 R-B-2（カード内インライン展開）**。理由: 差し戻しの根本原因が「右ペイン編集 vs カード内編集」の構造差であり、ここを変えないと差し戻しが解消しない。
+
+---
+
+### 変更コンポーネント（リワーク対象）
+
+#### 変更（大規模書き換え）
+
+- `src/components/das/DasWorkflowView.tsx` — **全面書き換え**。縦ツリー → 横方向フロー。詳細は後述の「横フロー描画仕様」参照
+- `src/components/das/DasWorkspaceLayout.tsx` — レイアウト変更: 下=RecorderView、右=状態（変数）パネル。DasPropertiesPane の import を除去し DasStatePane に差し替え
+- `src/components/das/DasPalette.tsx` — 10 項目のフラットリスト → 2026.1 カタログ（12 カテゴリ）のカテゴリ折りたたみ表示。ミッション未使用ステップは disabled
+- `src/model/dasRobot.ts` — DasAction union の `OpenWindow` を `Browser` / `Windows` に分割、DasFinder のフィールド拡張、DAS_STEP_CATALOG 定数追加、DAS_ACTION_LABELS 更新
+
+#### 変更（中規模）
+
+- `src/components/das/DasPropertiesPane.tsx` — **廃止**（ファイル自体は削除しない。export default を `DasStatePane` に rename して「状態（変数）パネル」に役割変更）。フォーム部品（FinderDisplay / GuardRow / GuardedChoiceProps / ForEachProps / ClickProps / ExtractValueProps / OpenWindowProps / mapStepById 等）は `src/components/das/StepCardForms.tsx` に抽出して DasWorkflowView 内のカード展開で使う
+- `src/engine/dasSimulator.ts` — `OpenWindow` → `Browser` / `Windows` 分岐追加。execOpenWindow を execBrowser / execWindows に分割
+- `src/engine/dasValidator.ts` — `requireOpenWindow` を `requireBrowser` に rename（windowTitle 判定ロジックは同等）。DasActionType の変更に追従
+- `src/engine/dasStepStatus.ts` — `OpenWindow` case を `Browser` / `Windows` に分割
+- `src/store/dasRobotStore.ts` — DasAction 変更に追従
+- `src/data/missions/d1.ts` — `OpenWindow` → `Browser` に変更
+- `src/engine/das.engine.test.ts` — `OpenWindow` → `Browser` に変更。横フロー UI のテストは Vitest DOM テスト不要（ビジュアルレビューで確認）
+
+#### 新規作成
+
+- `src/components/das/StepCard.tsx` — 折りたたみ⇔展開可能なステップカード。折りたたみ時: アイコン＋名前＋▼。展開時: ヘッダ（アイコン＋タイトル＋^＋?）＋インラインフォーム。⚠ バッジ、選択時緑枠
+- `src/components/das/StepCardForms.tsx` — DasPropertiesPane から抽出したフォーム部品群（FinderForm / GuardedChoiceForm / ForEachForm / BrowserForm / WindowsForm / ClickForm / ExtractValueForm / EnterTextForm / ThrowForm / ReturnForm）
+- `src/components/das/FlowPoint.tsx` — ○ フローポイント（SVG circle、青接続線の始点/終点）
+- `src/components/das/GuardLane.tsx` — ガードチョイスカード内のガードレーン（ガード種別ドロップダウン＋インライン設定 → 青線 → ○ → 枝ステップカード → ○）。レーン間の破線＋緑⊕
+- `src/components/das/FinderForm.tsx` — 2026.1 準拠のコンポーネントファインダーフォーム（エイリアス / ベース ファインダー / デバイス / アプリケーション / コンポーネント / テキスト一致(Regex)）
+- `src/components/das/DasStatePane.tsx` — 右パネル: 変数一覧と現在値の表示（旧 DasPropertiesPane の空きスペースに相当）
+- `src/components/das/DasStepCatalog.ts` — `DAS_STEP_CATALOG` 定数定義（pure data、コンポーネントではない）
+
+#### 削除
+
+- なし（DasPropertiesPane.tsx はファイルを残し export を DasStatePane に変更。物理削除はしない）
+
+---
+
+### モデル変更の詳細
+
+#### DasAction union の変更（dasRobot.ts）
+
+`OpenWindow` を廃止し、2026.1 の「ブラウザ」と「Windows」に分離する。内部 type 文字列を安定 ID として使う方針は維持。
+
+```typescript
+// 廃止:
+// | { type: 'OpenWindow'; windowTitle: string; appName: string }
+
+// 新規 2 つ:
+| {
+    type: 'Browser'
+    /** ブラウザ種別（ゲームでは 'Chromium' 固定） */
+    browser: 'Chromium'
+    /** アクション: ページ読込 / ページ生成 / ダウンロードを待機 */
+    browserAction: 'pageLoad' | 'pageCreate' | 'waitDownload'
+    applicationName: string
+    url: string
+    timeout?: number
+  }
+| {
+    type: 'Windows'
+    /** デバイス */
+    device: string
+    /** アクション（ゲームでは '実行' 固定） */
+    windowsAction: 'execute'
+    /** 実行可能ファイルパス or プロセス名 */
+    executable: string
+    /** 作業ディレクトリ */
+    workingDir?: string
+    /** 引数 */
+    args?: string
+    /** 最大化を開始 */
+    startMaximized?: boolean
+  }
+
+// 追加:
+| { type: 'Return' }
+| { type: 'Throw'; exception: string }
+| { type: 'Assign'; variable: string; expression: string }
+| { type: 'TryCatch'; trySteps: DasStep[]; catches: { exception: string; steps: DasStep[] }[]; finallySteps: DasStep[] }
+| { type: 'WhileLoop'; condition: string; body: DasStep[] }
+```
+
+**注意**: `Return` / `Throw` / `Assign` / `TryCatch` / `WhileLoop` はカタログ表示のために type を追加するが、シミュレータの実行実装は D1-D5 で必要な `Throw`（ガードチョイス枝内で使用）と `Return` のみ。他は disabled ステップとして UI 表示のみ。
+
+#### DasActionType の拡張
+
+```typescript
+export type DasActionType = DasAction['type']
+// 結果: 'Browser' | 'Windows' | 'Click' | 'ExtractValue' | 'EnterText' |
+//       'GuardedChoice' | 'ForEach' | 'Loop' | 'Break' | 'Continue' |
+//       'Condition' | 'Group' | 'Return' | 'Throw' | 'Assign' | 'TryCatch' | 'WhileLoop'
+```
+
+#### DAS_ACTION_LABELS の更新
+
+```typescript
+export const DAS_ACTION_LABELS: Record<DasActionType, string> = {
+  Browser: 'ブラウザ',
+  Windows: 'Windows',
+  Click: 'クリック',
+  ExtractValue: '値を抽出',
+  EnterText: 'テキストを入力',
+  GuardedChoice: 'ガード チョイス',  // ※公式は半角スペース入り
+  ForEach: '要素の繰り返し',          // ※2026.1 正式名
+  Loop: 'ループ',
+  Break: 'ブレイク',
+  Continue: 'コンテニュー',
+  Condition: '条件',
+  Group: 'グループ',
+  Return: 'リターン',
+  Throw: 'スロー',
+  Assign: '割り当て',
+  TryCatch: 'トライ-キャッチ',
+  WhileLoop: '条件付きループ',
+}
+```
+
+#### DasFinder の拡張（2026.1 コンポーネントファインダーフォーム準拠）
+
+```typescript
+export interface DasFinder {
+  kind: DasFinderKind
+  selector: string
+  reuse: 'none' | 'prev' | 'named'
+  aliasName?: string
+  scopeRef?: string
+
+  // ---- 2026.1 追加フィールド ----
+  /** エイリアス（ファインダーの表示名） */
+  alias?: string
+  /** ベース ファインダー（'デバイスを再利用' 等） */
+  baseFinder?: string
+  /** デバイス（'local' 等） */
+  device?: string
+  /** アプリケーション（'cef' 等） */
+  application?: string
+  /** テキスト一致 (Regex) チェックボックス */
+  textMatch?: boolean
+  textMatchRegex?: string
+}
+```
+
+既存コードで `DasFinder` を使っている箇所は `alias` / `baseFinder` / `device` / `application` / `textMatch` がすべて optional なので型エラーは発生しない。FinderForm で表示・編集し、シミュレータは引き続き `selector` をメインの検索キーとして使う（教育ゲームとして、追加フィールドはフォーム表示のみで実行時影響なし）。
+
+#### DAS_STEP_CATALOG 定数（新規: dasRobot.ts に追加）
+
+§5.5 B の全カタログをカテゴリ付きで定義する。
+
+```typescript
+export interface DasStepCatalogEntry {
+  /** DasActionType（実装済みステップの type。未実装は null） */
+  actionType: DasActionType | null
+  /** カタログ上の表示名（2026.1 正式名） */
+  label: string
+  /** ゲーム内で実装済みか（false = disabled 表示） */
+  implemented: boolean
+}
+
+export interface DasStepCategory {
+  name: string
+  entries: DasStepCatalogEntry[]
+}
+
+export const DAS_STEP_CATALOG: DasStepCategory[] = [
+  {
+    name: '割り当てと変換',
+    entries: [
+      { actionType: 'Assign', label: '割り当て', implemented: false },
+      { actionType: null, label: '値の変換', implemented: false },
+    ],
+  },
+  {
+    name: '条件と制御',
+    entries: [
+      { actionType: 'Condition', label: '条件', implemented: true },
+      { actionType: 'TryCatch', label: 'トライ-キャッチ', implemented: false },
+      { actionType: 'Throw', label: 'スロー', implemented: true },
+      { actionType: 'GuardedChoice', label: 'ガード チョイス', implemented: true },
+      { actionType: 'Group', label: 'グループ', implemented: true },
+      { actionType: 'Return', label: 'リターン', implemented: true },
+    ],
+  },
+  {
+    name: 'ループ',
+    entries: [
+      { actionType: 'Loop', label: 'ループ', implemented: true },
+      { actionType: 'WhileLoop', label: '条件付きループ', implemented: false },
+      { actionType: 'ForEach', label: '要素の繰り返し', implemented: true },
+      { actionType: null, label: 'データベース照会', implemented: false },
+      { actionType: null, label: '電子メールごとに', implemented: false },
+      { actionType: null, label: 'ディレクトリの反復', implemented: false },
+      { actionType: null, label: 'JSON ループ', implemented: false },
+      { actionType: 'Break', label: 'ブレイク', implemented: true },
+      { actionType: 'Continue', label: 'コンテニュー', implemented: true },
+    ],
+  },
+  {
+    name: 'アプリケーション',
+    entries: [
+      { actionType: 'Browser', label: 'ブラウザ', implemented: true },
+      { actionType: 'Windows', label: 'Windows', implemented: true },
+      { actionType: null, label: 'Excel', implemented: false },
+      { actionType: null, label: 'ターミナル', implemented: false },
+      { actionType: null, label: 'ツリー モード', implemented: false },
+      { actionType: null, label: 'Document Transformation', implemented: false },
+      { actionType: null, label: 'PDF', implemented: false },
+      { actionType: null, label: '電子メール', implemented: false },
+    ],
+  },
+  {
+    name: 'データベース',
+    entries: [
+      { actionType: null, label: 'データベース照会', implemented: false },
+      { actionType: null, label: 'データベース データ登録', implemented: false },
+      { actionType: null, label: 'データベース データ抽出', implemented: false },
+      { actionType: null, label: 'データベースから削除', implemented: false },
+      { actionType: null, label: 'キーの計算', implemented: false },
+      { actionType: null, label: 'SQL 実行', implemented: false },
+    ],
+  },
+  {
+    name: 'ファイル システム',
+    entries: [
+      { actionType: null, label: 'ファイルの読み込み', implemented: false },
+      { actionType: null, label: 'ファイル出力', implemented: false },
+      { actionType: null, label: 'ファイル システム アクション', implemented: false },
+    ],
+  },
+  {
+    name: 'JSON',
+    entries: [
+      { actionType: null, label: 'JSON オブジェクトを検索', implemented: false },
+      { actionType: null, label: 'JSON ループ', implemented: false },
+      { actionType: null, label: 'JSON を更新', implemented: false },
+      { actionType: null, label: 'JSON の検索', implemented: false },
+      { actionType: null, label: 'JSON 配列を並び替える', implemented: false },
+    ],
+  },
+  {
+    name: '出力値',
+    entries: [
+      { actionType: null, label: '出力値', implemented: false },
+      { actionType: null, label: 'ファイル出力', implemented: false },
+      { actionType: null, label: 'ログ出力', implemented: false },
+    ],
+  },
+  {
+    name: '統合',
+    entries: [
+      { actionType: null, label: 'TotalAgility', implemented: false },
+      { actionType: null, label: 'クラウド AI', implemented: false },
+      { actionType: null, label: 'カスタム アクション', implemented: false },
+    ],
+  },
+  {
+    name: 'リモート デバイス',
+    entries: [
+      { actionType: null, label: 'デバイスに接続', implemented: false },
+      { actionType: null, label: 'デバイスからの切断', implemented: false },
+      { actionType: null, label: 'リモート デバイス アクション', implemented: false },
+      { actionType: null, label: 'RDP ログイン', implemented: false },
+      { actionType: null, label: 'トリガー チョイス', implemented: false },
+      { actionType: null, label: '通知', implemented: false },
+      { actionType: null, label: 'クリップボードから抽出', implemented: false },
+      { actionType: null, label: 'クリップボードへ割り当て', implemented: false },
+    ],
+  },
+  {
+    name: '抽出',
+    entries: [
+      { actionType: null, label: 'ツリーを XML として抽出', implemented: false },
+      { actionType: null, label: '画像抽出', implemented: false },
+      { actionType: null, label: '画像からテキスト抽出', implemented: false },
+      { actionType: 'ExtractValue', label: '値を抽出', implemented: true },
+    ],
+  },
+  {
+    name: 'マウスとキーボード',
+    entries: [
+      { actionType: null, label: 'キープレス', implemented: false },
+      { actionType: 'EnterText', label: 'テキストを入力', implemented: true },
+      { actionType: null, label: 'マウス プレス', implemented: false },
+      { actionType: null, label: 'マウス移動', implemented: false },
+      { actionType: null, label: 'スクロール', implemented: false },
+      { actionType: 'Click', label: 'クリック', implemented: true },
+    ],
+  },
+  {
+    name: 'その他',
+    entries: [
+      { actionType: null, label: 'ツリーの凍結', implemented: false },
+      { actionType: null, label: 'REST Web サービス呼出', implemented: false },
+      { actionType: null, label: 'シークレットの検索', implemented: false },
+      { actionType: null, label: 'ロボットの呼び出し', implemented: false },
+    ],
+  },
+]
+```
+
+---
+
+### 横フロー描画仕様（DasWorkflowView 全面書き換え）
+
+#### 基本構造
+
+```
+○―――[ StepCard ]―――○―――[ StepCard ]―――○―――[ StepCard ]―――○
+```
+
+- `○` = FlowPoint（div: `w-3 h-3 rounded-full border-2 border-blue-500 bg-white`）
+- `―――` = 接続線（div: `h-0.5 w-6 bg-blue-500` or SVG line）
+- `[ StepCard ]` = 折りたたみ可能なカード
+
+横並びは `display: flex; flex-direction: row; align-items: flex-start; gap: 0;` で実現。overflow-x: auto でキャンバスをスクロール可能にする。
+
+#### StepCard の 2 状態
+
+**折りたたみ時:**
+```
+┌─────────────────────┐
+│ 🖐 ガード チョイス ▼ │  ← アイコン＋名前＋展開ボタン(▼)
+└─────────────────────┘
+```
+- min-width: 120px, 背景 bg-white, border border-gray-300, rounded
+- ⚠ バッジ: 設定不備時にカード右上に `absolute` で黄色 ⚠
+- 選択中: `ring-2 ring-green-500`（緑枠）
+- 現在ステップ（実行後）: `ring-2 ring-green-400 bg-green-50`
+
+**展開時:**
+```
+┌──────────────────────────────────┐
+│ 🖐 ガード チョイス         ^ ? │  ← ヘッダ: アイコン＋タイトル＋折りたたみ(^)＋ヘルプ(?)
+├──────────────────────────────────┤
+│  [インライン設定フォーム]        │  ← StepCardForms から該当フォームを描画
+│  ...                             │
+└──────────────────────────────────┘
+```
+- max-width: 400px（展開時は横幅が広がる）
+- フォーム部品は DasPropertiesPane から移植した StepCardForms を使う
+
+#### ガードチョイスカードの特殊構造（実機 UI 画像準拠）
+
+GuardedChoiceLocation.png と add_guard2.png に忠実に従う:
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│ 🖐 ガード チョイス                                     ^ ?   │
+├────────────────────────────────────────────────────────────────┤
+│ ┌──────────────────────────────────┐                          │
+│ │ [ロケーション...  ▼]             │                          │
+│ │  コンポーネント  ^ (?)           │                          │
+│ │  エイリアス: [          ]        │         ○───[ 枝StepCard ]───○
+│ │  ベース ファインダー             │ ───○──→│                       │
+│ │  [デバイスを再利用▼]             │         ○───[ 枝StepCard ]───○
+│ │  デバイス: [local   ▼]           │
+│ │  アプリケーション: [cef ]        │
+│ │  コンポーネント: [IMG[der_r...]  │
+│ │  □テキスト一致 (Regex)           │
+│ └──────────────────────────────────┘
+│ ┄┄┄┄┄┄┄┄┄┄┄┄┄ ⊕ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄  ← 破線＋緑⊕（ガード追加）
+│ ┌──────────────────────────────────┐
+│ │ [秒が経過した...  ▼]             │         ○───[❗ スロー TimeOutError]───○
+│ │  秒: [60                ]        │ ───○──→│   例外: [TimeOutError    ]    │
+│ └──────────────────────────────────┘         ○──────────────────────────────○
+└────────────────────────────────────────────────────────────────┘
+```
+
+- 各ガードレーンは縦に積む（`flex-direction: column` で親カード内に配置）
+- レーン = ガード種別ドロップダウン（表示: 「ロケーション...」「秒が経過した...」形式）＋ インライン設定フォーム
+- レーンの右端から青線 → ○ → そのガード枝の後続ステップカード列 → ○
+- レーン間に破線（`border-dashed border-green-500`）＋緑の⊕ボタン（`onClick` でガード追加）
+
+#### ガード種別ドロップダウンの表示文字列
+
+実機 UI 画像では「ロケーション...」「秒が経過した...」形式で表示されている。
+
+```typescript
+export const GUARD_TYPE_DROPDOWN_LABELS: Record<GuardType, string> = {
+  timeout: '秒が経過した...',
+  locationFound: 'ロケーション...',
+  locationNotFound: 'ロケーション（不在）...',
+  locationRemoved: 'ロケーション（除去）...',
+  applicationFound: 'アプリケーション...',
+  applicationNotFound: 'アプリケーション（不在）...',
+  treeStoppedChanging: 'ツリーの変更停止...',
+}
+```
+
+#### For Each カードの構造
+
+```
+┌──────────────────────────────────┐
+│ ↻ 要素の繰り返し          ^ ?  │
+├──────────────────────────────────┤
+│ スコープ ファインダー:           │
+│  [FinderForm]                    │
+│ 要素ファインダー:                │
+│  [FinderForm]                    │
+├──────────────────────────────────┤
+│ body: ○―[StepCard]―○―[StepCard]―○│  ← 内部に横フロー（再帰）
+└──────────────────────────────────┘
+```
+
+---
+
+### レイアウト変更（DasWorkspaceLayout）
+
+#### 現行レイアウト（誤り）
+
+```
+┌──────┬──────────────────────┬──────────┐
+│ 左   │ 中央上: ワークフロー  │ 右上:    │
+│ プロ │                       │ プロパティ│
+│ ジェ ├──────────────────────│ ペイン    │
+│ クト │ 中央下: レコーダー    ├──────────┤
+│ +パレ│ ビュー                │ 右下:    │
+│ ット │                       │ ステータス│
+└──────┴──────────────────────┴──────────┘
+```
+
+#### 修正後レイアウト（実機準拠）
+
+```
+┌──────┬────────────────────────────────────────────────────┬──────────┐
+│ 左   │ 中央上: タブバー（デザイン | デバッグ + ファイルタブ）│          │
+│ プロ ├────────────────────────────────────────────────────┤ 右:      │
+│ ジェ │ 中央:                                               │ 状態     │
+│ クト │ ワークフローキャンバス                              │ （変数）  │
+│ +パレ│ （横フロー: ○―[Card]―○―[Card]―○）                 │ パネル    │
+│ ット │ overflow-x: auto でスクロール                       │          │
+│（カタ├────────────────────────────────────────────────────┤ + tick   │
+│ ログ│ 下: レコーダービュー                               │ スライダ │
+│ 表示│ （模擬アプリ画面 | 要素ツリー）                     │ + ログ   │
+│ ）   │                                                     │          │
+└──────┴────────────────────────────────────────────────────┴──────────┘
+```
+
+変更点:
+1. 右パネル: DasPropertiesPane → DasStatePane（変数一覧＋tick スライダ＋実行ログ）
+2. 中央の上下分割: ワークフローキャンバス（上、flex-1）+ レコーダービュー（下、h-[280px] 固定高）
+3. 左パネル: DasPalette をカタログ表示に変更（カテゴリ折りたたみ）
+
+---
+
+### パレット（DasPalette）の変更
+
+現行の 10 項目フラットリストを、`DAS_STEP_CATALOG` を使ったカテゴリ付き表示に変更する。
+
+- 各カテゴリは `<details>` / `<summary>` で折りたたみ表示
+- `implemented: true` のステップ: 通常表示、クリックで `addStep` 実行
+- `implemented: false` のステップ: `opacity-50 cursor-not-allowed`、ツールチップ「この研修ラボでは未対応」
+- `actionType: null` のステップ: 同上（actionType が null のため addStep は呼ばない）
+
+---
+
+### FinderForm（2026.1 コンポーネントファインダーフォーム）
+
+GuardedChoiceLocation.png に表示されているフォーム項目を忠実に再現する。
+
+```typescript
+// FinderForm の props
+interface FinderFormProps {
+  finder: DasFinder
+  onChange: (finder: DasFinder) => void
+  /** 折りたたみ可能にするか（ガードレーン内では展開固定） */
+  collapsible?: boolean
+}
+```
+
+フォーム項目（上から順）:
+1. **エイリアス** — text input (`finder.alias`)
+2. **ベース ファインダー** — select (`finder.baseFinder`): 「デバイスを再利用」「(なし)」
+3. **デバイス** — select (`finder.device`): 「local」固定（ゲーム内）
+4. **アプリケーション** — text input (`finder.application`): 「cef」等
+5. **コンポーネント** — text input, font-mono (`finder.selector`): CSS セレクタ
+6. **テキスト一致 (Regex)** — checkbox + text input (`finder.textMatch`, `finder.textMatchRegex`)
+
+シミュレータは引き続き `finder.selector` のみを使って検索する。他のフィールドは UI 表示用（実機の見た目に寄せるため）。
+
+---
+
+### 影響範囲分析（リワーク）
+
+| 領域 | 影響内容 | リスク |
+|---|---|---|
+| `DasWorkflowView.tsx` | 全面書き換え（縦ツリー → 横フロー＋カード展開） | **High**: 最大の変更。レイアウト崩れ・ガードレーン構造の CSS 調整に工数がかかる可能性 |
+| `DasWorkspaceLayout.tsx` | レイアウト 3 ペイン構成変更 | Med: flexbox の配置変更のみだが、レイアウト比率の調整が必要 |
+| `DasPalette.tsx` | カタログ表示に変更 | Med: DAS_STEP_CATALOG を走査して描画。disabled 表示の実装 |
+| `DasPropertiesPane.tsx` | 役割変更（→ DasStatePane）。フォーム部品を StepCardForms に移動 | Med: ファイル分割。フォーム部品のインターフェースは同じ |
+| `dasRobot.ts` | DasAction union 変更（OpenWindow → Browser/Windows + 5 型追加）、DasFinder 拡張、DAS_STEP_CATALOG 追加 | **High**: 型変更が engine / store / data / components 全体に波及 |
+| `dasSimulator.ts` | execOpenWindow → execBrowser / execWindows。Return / Throw の簡易実装追加 | Med: ロジック変更量は中程度。既存ガード/ForEach/Loop ロジックは不変 |
+| `dasValidator.ts` | requireOpenWindow → requireBrowser。型追従 | Low: rename と型変更のみ |
+| `dasStepStatus.ts` | OpenWindow case → Browser / Windows case | Low |
+| `dasRobotStore.ts` | DasAction 型変更に追従 | Low: getDefaultStepName の対応追加のみ |
+| `d1.ts` | OpenWindow → Browser に変更 | Low: 1 箇所の type 変更 |
+| `das.engine.test.ts` | OpenWindow → Browser に変更。requireOpenWindow → requireBrowser | Med: テスト修正量は多いがパターンは単純 |
+| 既存 M1-M5 / simulator.ts / validator.ts | **変更なし** | Low |
+
+---
+
+### 非機能観点（リワーク追加分）
+
+#### パフォーマンス
+- 横フローのカード数は D1-D5 で最大 10 枚程度。仮想化は不要。`React.memo` を StepCard / FlowPoint に適用する
+- DAS_STEP_CATALOG は静的データ（70 エントリ程度）。パレット描画は軽量
+
+#### 後方互換性
+- `DasAction` union の `OpenWindow` 廃止は破壊的変更だが、影響範囲は DAS 系コード内に閉じる（M1-M5 は `DasAction` を一切参照しない）
+- `DasFinder` の追加フィールドはすべて optional。既存のテストコードで `defaultFinder('...')` としている箇所は変更不要
+
+#### テスト戦略
+- `das.engine.test.ts` の `OpenWindow` テストを `Browser` に書き換え
+- `requireOpenWindow` → `requireBrowser` のテスト修正
+- 横フロー UI のビジュアルテストは手動確認（Vitest DOM テストは費用対効果が低い）
+- ガードレーン構造の CSS は手動目視 + スクリーンショット比較
+
+---
+
+### 確定した公開 API（リワーク追加分）
+
+#### 新規型
+
+| 型名 | ファイル | 概要 |
+|---|---|---|
+| `DasStepCatalogEntry` | `dasRobot.ts` | カタログ 1 エントリ（actionType / label / implemented） |
+| `DasStepCategory` | `dasRobot.ts` | カタログ 1 カテゴリ（name / entries[]） |
+
+#### 新規定数
+
+| 定数名 | ファイル | 概要 |
+|---|---|---|
+| `DAS_STEP_CATALOG` | `dasRobot.ts` | 2026.1 全カタログ（12 カテゴリ、約 70 エントリ） |
+| `GUARD_TYPE_DROPDOWN_LABELS` | `dasRobot.ts` | ガード種別ドロップダウンの表示文字列（「ロケーション...」形式） |
+
+#### 変更された型
+
+| 型名 | 変更内容 |
+|---|---|
+| `DasAction` | `OpenWindow` 廃止 → `Browser` / `Windows` / `Return` / `Throw` / `Assign` / `TryCatch` / `WhileLoop` 追加 |
+| `DasActionType` | 同上（union 拡張） |
+| `DasFinder` | `alias` / `baseFinder` / `device` / `application` / `textMatch` / `textMatchRegex` 追加（すべて optional） |
+
+#### 変更された関数
+
+| 関数名 | 変更内容 |
+|---|---|
+| `requireOpenWindow` → `requireBrowser` | rename + `windowTitle` → `applicationName` 判定 |
+| `runDasRobot` 内部 | `execOpenWindow` → `execBrowser` / `execWindows` に分割。`execThrow` / `execReturn` 追加 |
+
+#### 新規コンポーネント
+
+| コンポーネント | ファイル | 概要 |
+|---|---|---|
+| `StepCard` | `StepCard.tsx` | 折りたたみ⇔展開ステップカード |
+| `StepCardForms` | `StepCardForms.tsx` | フォーム部品群（旧 DasPropertiesPane から移植） |
+| `FlowPoint` | `FlowPoint.tsx` | ○ フローポイント + 青接続線 |
+| `GuardLane` | `GuardLane.tsx` | ガードチョイスのレーン構造 |
+| `FinderForm` | `FinderForm.tsx` | 2026.1 準拠コンポーネントファインダーフォーム |
+| `DasStatePane` | `DasStatePane.tsx` | 変数一覧パネル（旧 DasPropertiesPane の代替） |
+
+---
+
+### docs/ への波及
+
+前回設計と同じく `docs/` 未整備のため更新不要。
+
+---
+
+### 未確定事項
+
+藤田さんへの確認が必要な未確定事項はない。以下は実装フェーズで判断できる範囲:
+
+1. **ガードレーン内の枝ステップカードの横幅上限**: 実機画像から推定して max-width: 280px を既定とし、実装後に調整可
+2. **カード展開時のアニメーション**: 実機には瞬時展開。ゲームでも transition なし（教育目的で即応性優先）
+3. **FlowPoint の描画**: SVG circle vs div+rounded-full のどちらでも可。div が軽量なので div を既定とする
+
+---

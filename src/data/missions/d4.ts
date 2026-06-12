@@ -197,7 +197,7 @@ export const D4: Mission = {
     robot.variables.push({ name: '品目', typeName: '品目' })
   },
   dasSuggested: {
-    actionSequence: ['OpenWindow', 'ForEach', 'ExtractValue'],
+    actionSequence: ['Windows', 'ForEach', 'ExtractValue'],
     hint: 'For Each のスコープファインダーに仕入れ一覧テーブルを指定し、エレメントファインダーに「> listitem」（テーブルの直接の子）を設定します。body 内で品目名を抽出します。',
   },
   dasChecks: [

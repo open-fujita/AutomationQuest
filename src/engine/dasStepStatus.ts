@@ -2,6 +2,10 @@
 // DAS ステップの設定不備判定（ロボットビューの警告バッジ相当）。
 // 実機 DS の「黄色い警告バッジ」を DAS 版で再現する。
 // stepStatus.ts の設計思想を DAS ステップ構造に合わせて踏襲。
+//
+// 2026.1 リワーク:
+//   ・OpenWindow case を Browser / Windows に分割
+//   ・Return / Throw / Assign / TryCatch / WhileLoop の case 追加
 // ============================================================
 
 import type { DasStep, DasAction } from '../model/dasRobot'
@@ -28,9 +32,12 @@ export function dasStepIssue(step: DasStep): string | null {
 
 function checkAction(action: DasAction): string | null {
   switch (action.type) {
-    case 'OpenWindow':
-      if (!action.windowTitle.trim()) return 'ウィンドウタイトルが未設定です'
-      if (!action.appName.trim()) return 'アプリ名が未設定です'
+    case 'Windows':
+      if (!action.executable.trim()) return '実行可能ファイル（executable）が未設定です'
+      return null
+
+    case 'Browser':
+      if (!action.applicationName.trim() && !action.url.trim()) return 'アプリケーション名または URL が未設定です'
       return null
 
     case 'Click':
@@ -69,20 +76,30 @@ function checkAction(action: DasAction): string | null {
       if (!action.scopeFinder.selector.trim()) return 'スコープファインダーが未設定です'
       if (!action.scopeFinderName.trim()) return 'スコープファインダー名が未設定です'
       if (!action.elementFinder.selector.trim()) return 'エレメントファインダーが未設定です'
-      if (action.body.length === 0) return 'For Each の本体（body）が空です'
+      if (action.body.length === 0) return '要素の繰り返しの本体（body）が空です'
       // 再帰的に body ステップも確認
       for (const bodyStep of action.body) {
         const issue = dasStepIssue(bodyStep)
-        if (issue) return `For Each 内の「${bodyStep.name || DAS_ANON_STEP_NAME}」: ${issue}`
+        if (issue) return `要素の繰り返し内の「${bodyStep.name || DAS_ANON_STEP_NAME}」: ${issue}`
       }
       return null
 
     case 'Loop':
-      if (action.body.length === 0) return 'Loop の本体（body）が空です'
+      if (action.body.length === 0) return 'ループの本体（body）が空です'
       return null
 
     case 'Break':
     case 'Continue':
+    case 'Return':
+      return null
+
+    case 'Throw':
+      if (!action.exception.trim()) return '例外種別が未設定です'
+      return null
+
+    case 'Assign':
+      if (!action.variable.trim()) return '割り当て先の変数が未設定です'
+      if (!action.expression.trim()) return '式（expression）が未設定です'
       return null
 
     case 'Condition':
@@ -91,6 +108,15 @@ function checkAction(action: DasAction): string | null {
 
     case 'Group':
       if (!action.name.trim()) return 'グループ名が未設定です'
+      return null
+
+    case 'TryCatch':
+      if (action.trySteps.length === 0) return 'Try ブロックが空です'
+      return null
+
+    case 'WhileLoop':
+      if (!action.condition.trim()) return 'ループ条件が未設定です'
+      if (action.body.length === 0) return '条件付きループの本体（body）が空です'
       return null
 
     default:

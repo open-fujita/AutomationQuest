@@ -6,7 +6,14 @@
 //   ・ガードチョイス: 複数ガードを並行監視 → 最初成立ガードの枝を排他実行
 //   ・For Each: スコープファインダーで起点特定 → 相対セレクタで各子を反復
 //   ・Loop/Break/Continue: 内部フラグで制御
+//   ・Throw: 例外を送出して上位に伝播
+//   ・Return: ロボットを正常終了
 //   ・tick 駆動・純粋関数・シード乱数（決定的）
+//
+// 2026.1 リワーク:
+//   ・execOpenWindow → execWindows / execBrowser に分割
+//   ・execThrow / execReturn 追加
+//   ・Assign / TryCatch / WhileLoop は disabled ステップとして skip（UI 表示のみ）
 // ============================================================
 
 import type { DasRobot, DasStep, DasAction, Guard, GuardType, DasFinder } from '../model/dasRobot'
@@ -57,6 +64,14 @@ export const EMPTY_DAS_SIM: DasSimResult = {
 
 // ---- 内部状態 -------------------------------------------------
 
+/** Throw によって送出される例外（ロジック制御用） */
+class DasThrowSignal {
+  constructor(public readonly exception: string) {}
+}
+
+/** Return によって正常終了を伝えるシグナル */
+class DasReturnSignal {}
+
 interface SimState {
   app: MockApp
   opts: Required<DasSimOptions>
@@ -82,6 +97,8 @@ interface SimState {
  *   - ガードチョイス: 並行監視 → 最初成立ガードの枝を排他実行
  *   - For Each: スコープファインダーで起点を特定 → 相対セレクタで各子を反復
  *   - Loop/Break/Continue: 内部フラグで制御
+ *   - Throw: 例外を送出（DasThrowSignal をスロー）
+ *   - Return: 正常終了（DasReturnSignal をスロー）
  */
 export function runDasRobot(
   robot: DasRobot,
@@ -110,14 +127,27 @@ export function runDasRobot(
   try {
     execSteps(state, robot.steps)
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e)
-    state.errors.push(`シミュレーション例外: ${msg}`)
-    state.log.push({
-      stepId: 'sim-error',
-      stepName: 'シミュレーター',
-      status: 'error',
-      message: `致命的エラー: ${msg}`,
-    })
+    if (e instanceof DasReturnSignal) {
+      // Return による正常終了 — エラーなし
+    } else if (e instanceof DasThrowSignal) {
+      const msg = `未キャッチの例外: ${e.exception}`
+      state.errors.push(msg)
+      state.log.push({
+        stepId: 'sim-throw',
+        stepName: 'シミュレーター',
+        status: 'error',
+        message: msg,
+      })
+    } else {
+      const msg = e instanceof Error ? e.message : String(e)
+      state.errors.push(`シミュレーション例外: ${msg}`)
+      state.log.push({
+        stepId: 'sim-error',
+        stepName: 'シミュレーター',
+        status: 'error',
+        message: `致命的エラー: ${msg}`,
+      })
+    }
   }
 
   return {
@@ -134,6 +164,7 @@ export function runDasRobot(
 
 /**
  * ステップ列を順に実行する。Break/Continue フラグが立ったら即座に戻る。
+ * DasThrowSignal / DasReturnSignal は呼び出し元に伝播する。
  */
 function execSteps(state: SimState, steps: DasStep[]): void {
   for (const step of steps) {
@@ -159,8 +190,12 @@ function execStep(state: SimState, step: DasStep): void {
   const action = step.action
 
   switch (action.type) {
-    case 'OpenWindow':
-      execOpenWindow(state, step, action)
+    case 'Windows':
+      execWindows(state, step, action)
+      break
+
+    case 'Browser':
+      execBrowser(state, step, action)
       break
 
     case 'Click':
@@ -189,12 +224,12 @@ function execStep(state: SimState, step: DasStep): void {
 
     case 'Break':
       state.breakFlag = true
-      state.log.push({ stepId: step.id, stepName: step.name, status: 'ok', message: 'Break: ループを終了します' })
+      state.log.push({ stepId: step.id, stepName: step.name, status: 'ok', message: 'ブレイク: ループを終了します' })
       break
 
     case 'Continue':
       state.continueFlag = true
-      state.log.push({ stepId: step.id, stepName: step.name, status: 'ok', message: 'Continue: 次の反復へスキップします' })
+      state.log.push({ stepId: step.id, stepName: step.name, status: 'ok', message: 'コンテニュー: 次の反復へスキップします' })
       break
 
     case 'Condition':
@@ -205,38 +240,107 @@ function execStep(state: SimState, step: DasStep): void {
       state.log.push({ stepId: step.id, stepName: step.name, status: 'ok', message: `グループ「${action.name}」開始` })
       execSteps(state, action.steps)
       break
+
+    case 'Return':
+      execReturn(state, step)
+      break
+
+    case 'Throw':
+      execThrow(state, step, action)
+      break
+
+    // Assign / TryCatch / WhileLoop は UI 表示のみ（skip）
+    case 'Assign':
+    case 'TryCatch':
+    case 'WhileLoop':
+      state.log.push({
+        stepId: step.id,
+        stepName: step.name,
+        status: 'skip',
+        message: `「${action.type}」は研修ラボでは未実装のためスキップします`,
+      })
+      break
   }
 }
 
-// ---- OpenWindow -----------------------------------------------
+// ---- Windows（デスクトップアプリ起動）-------------------------
 
-function execOpenWindow(state: SimState, step: DasStep, action: Extract<DasAction, { type: 'OpenWindow' }>): void {
+function execWindows(state: SimState, step: DasStep, action: Extract<DasAction, { type: 'Windows' }>): void {
   const widgets = applyTimeline(state.app, state.currentTick)
+  // executable がアプリのウィンドウタイトルまたは name に一致するか確認
   const rootWindow = widgets.find(
     (w) => w.type === 'window' &&
            w.visible &&
-           (w.attrs['title'] === action.windowTitle || w.attrs['name'] === action.windowTitle),
+           (w.attrs['title'] === action.executable ||
+            w.attrs['name'] === action.executable ||
+            // アプリ名（拡張子なし）でも一致を確認
+            w.attrs['title']?.includes(action.executable) ||
+            action.executable === ''),
   )
 
-  if (rootWindow) {
+  if (rootWindow || action.executable.trim() === '') {
     state.log.push({
       stepId: step.id,
       stepName: step.name,
       status: 'ok',
-      message: `ウィンドウ「${action.windowTitle}」を開きました`,
+      message: `Windows: 「${action.executable}」を実行しました（デバイス: ${action.device || 'local'}）`,
       tick: state.currentTick,
     })
   } else {
+    // ウィンドウが見つからなくても「起動試行」として ok ログ（実機と同じ: 起動コマンドは失敗しない）
     state.log.push({
       stepId: step.id,
       stepName: step.name,
-      status: 'error',
-      message: `ウィンドウ「${action.windowTitle}」が見つかりません（appName: ${action.appName}）`,
+      status: 'ok',
+      message: `Windows: 「${action.executable}」の起動コマンドを送信しました`,
       tick: state.currentTick,
     })
-    state.errors.push(`ウィンドウ「${action.windowTitle}」が見つかりません`)
   }
   state.currentTick += 1
+}
+
+// ---- Browser（組み込みブラウザ）------------------------------
+
+function execBrowser(state: SimState, step: DasStep, action: Extract<DasAction, { type: 'Browser' }>): void {
+  const actionLabel =
+    action.browserAction === 'pageLoad' ? 'ページ読込' :
+    action.browserAction === 'pageCreate' ? 'ページ生成' :
+    'ダウンロードを待機'
+
+  state.log.push({
+    stepId: step.id,
+    stepName: step.name,
+    status: 'ok',
+    message: `ブラウザ（${action.browser}）: ${actionLabel}「${action.url || action.applicationName}」`,
+    tick: state.currentTick,
+  })
+  state.currentTick += 1
+}
+
+// ---- Return（正常終了）----------------------------------------
+
+function execReturn(state: SimState, step: DasStep): void {
+  state.log.push({
+    stepId: step.id,
+    stepName: step.name,
+    status: 'ok',
+    message: 'リターン: ロボットを正常終了します',
+    tick: state.currentTick,
+  })
+  throw new DasReturnSignal()
+}
+
+// ---- Throw（例外送出）-----------------------------------------
+
+function execThrow(state: SimState, step: DasStep, action: Extract<DasAction, { type: 'Throw' }>): void {
+  state.log.push({
+    stepId: step.id,
+    stepName: step.name,
+    status: 'error',
+    message: `スロー: 例外「${action.exception}」を送出します`,
+    tick: state.currentTick,
+  })
+  throw new DasThrowSignal(action.exception)
 }
 
 // ---- Click ----------------------------------------------------
@@ -394,7 +498,7 @@ function execGuardedChoice(state: SimState, step: DasStep, action: Extract<DasAc
     stepId: step.id,
     stepName: step.name,
     status: 'guard-waiting',
-    message: `ガードチョイス: ${action.guards.map((g) => g.type).join(' / ')} を並行監視中…`,
+    message: `ガード チョイス: ${action.guards.map((g) => g.type).join(' / ')} を並行監視中…`,
     tick: startTick,
   })
 
@@ -423,7 +527,7 @@ function execGuardedChoice(state: SimState, step: DasStep, action: Extract<DasAc
       stepId: step.id,
       stepName: step.name,
       status: 'error',
-      message: `ガードチョイス: ${state.opts.maxTick} tick 以内にガードが成立しませんでした`,
+      message: `ガード チョイス: ${state.opts.maxTick} tick 以内にガードが成立しませんでした`,
       tick: state.currentTick,
     })
     state.currentTick = state.opts.maxTick
@@ -539,7 +643,7 @@ function execForEach(state: SimState, step: DasStep, action: Extract<DasAction, 
       message: `スコープファインダーが見つかりません: ${action.scopeFinder.selector}`,
       tick: state.currentTick,
     })
-    state.errors.push(`For Each: スコープファインダーが見つかりません: ${action.scopeFinder.selector}`)
+    state.errors.push(`要素の繰り返し: スコープファインダーが見つかりません: ${action.scopeFinder.selector}`)
     state.currentTick += 1
     return
   }
@@ -553,7 +657,7 @@ function execForEach(state: SimState, step: DasStep, action: Extract<DasAction, 
       stepId: step.id,
       stepName: step.name,
       status: 'ok',
-      message: `For Each: 反復対象が 0 件（エレメントファインダー: ${action.elementFinder.selector}）`,
+      message: `要素の繰り返し: 反復対象が 0 件（エレメントファインダー: ${action.elementFinder.selector}）`,
       tick: state.currentTick,
     })
     state.currentTick += 1
@@ -564,7 +668,7 @@ function execForEach(state: SimState, step: DasStep, action: Extract<DasAction, 
     stepId: step.id,
     stepName: step.name,
     status: 'ok',
-    message: `For Each 開始: ${elements.length} 件を反復（スコープ: ${action.scopeFinder.selector}）`,
+    message: `要素の繰り返し 開始: ${elements.length} 件を反復（スコープ: ${action.scopeFinder.selector}）`,
     tick: state.currentTick,
   })
   state.currentTick += 1
@@ -642,14 +746,14 @@ function execLoop(state: SimState, step: DasStep, action: Extract<DasAction, { t
     stepId: step.id,
     stepName: step.name,
     status: 'ok',
-    message: 'Loop 開始',
+    message: 'ループ 開始',
     tick: state.currentTick,
   })
 
   let guard = 0
   while (state.currentTick < state.opts.maxTick) {
     if (guard++ > 10000) {
-      state.errors.push('Loop: 最大反復回数を超過しました（暴走防止）')
+      state.errors.push('ループ: 最大反復回数を超過しました（暴走防止）')
       break
     }
     state.continueFlag = false

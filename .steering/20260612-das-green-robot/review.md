@@ -129,3 +129,105 @@ created: 2026-06-12
 2. **緑ロボット UI の視認性**: 縦ワークフローツリーのガード枝インデント・成立枝の緑ハイライト、模擬 Windows アプリ（タイトルバー／通知の黄帯）の見栄え。
 3. **D2/D3 の失敗→成功体験**: 固定秒待ち（timeout のみ）構成で実際に失敗表示が出て、Location Found / Application Found 追加で成功に転じる学習導線が直感的か。
 4. **進捗解放**: M5 クリア後に D1 が解放され、D1→D5 が直列に解放される動線（`isUnlocked` は配列順依存のため M5 未クリア状態で D1 がロックされる挙動）が意図どおりか。
+
+---
+
+## 2026.1 忠実化リワーク レビュー（2026-06-12 追補）
+
+藤田さん差し戻し（「画面・オプションが実機と全然違う」）を受けた忠実化リワークを独立検証した。`das-spec-notes.md §5.5 A〜C` および公式画像 2 枚（`GuardedChoiceLocation.png` / `add_guard2.png`）と実装を 1 項目ずつ突合。
+
+### 総合判定（リワーク）
+
+- [x] **APPROVE** ✅
+- [ ] CHANGES_REQUESTED
+- [ ] BLOCKED
+
+差し戻し 6 点すべて解消を確認。静的チェック 3 種グリーン、第1弾リグレッションなし。**必須修正なし。**
+
+### 静的チェック（Reviewer 独立再実行）
+
+| チェック | コマンド | 結果 |
+|---|---|---|
+| 型チェック | `npx tsc -b` | ✅ exit 0、出力なし |
+| テスト | `npx vitest run` | ✅ 2 ファイル / **87 passed**（`engine.test.ts` 12 + `das.engine.test.ts` 75。前回 65 → 75 に増加、退行なし） |
+| ビルド | `npm run build` | ✅ `tsc -b && vite build` 成功（**247 modules**、9.06s。DasPropertiesPane/DasStatusView 削除でモジュール構成更新） |
+
+- バンドル警告（559.97 kB）は既存事象（`@xyflow/react` 由来）で判定に影響しない。
+
+### §5.5 A〜C 突合
+
+**A. ワークフロー描画（横方向フロー）** — ✅ 充足
+- `DasWorkflowView.tsx:33-105` の `HorizontalFlow` が `○—[StepCard]—○` を `flex items-start`（左→右）で描画。`FlowPoint`/`FlowLine` で青の接続線・フローポイントを再現。`overflow-x-auto`（L134）でスクロール可。**縦ツリーは完全撤去**。
+- 折りたたみ⇔展開: `StepCard.tsx:207-223`（折りたたみ=アイコン＋名前＋▼）/ `L226-249`（展開=アイコン＋タイトル＋^＋?）。展開時は**カード内インラインフォーム**（`L251-304`、StepCardForms 各種）。右プロパティペインでの編集ではない（`DasPropertiesPane.tsx` を削除済み、git diff で確認）。
+- ⚠ バッジ: `StepCard.tsx:176-185`（`dasStepIssue` 連動、カード右上）。選択中の緑枠: `L137`（`ring-2 ring-green-500`）。
+- 画面全体構成: `DasWorkspaceLayout.tsx` 左=`MyProjectsPane`＋`DasPalette`（L134-141）/ 中央上=デザイン・デバッグ＋ロボットファイルタブ（L146-154 ＋ `DasWorkflowView.tsx:122-130`）/ 中央=キャンバス（L157-159）/ **下=`RecorderView`（L162-167）** / 右=`DasStatePane`（状態＝変数パネル、L194-196）。検索結果・コメントは省略（共通前提で許容）。
+
+**B. ステップカタログ（2026.1 c_dassteps.html 忠実）** — ✅ 充足
+- `dasRobot.ts:335-468` の `DAS_STEP_CATALOG` が §5.5 B の **全 13 カテゴリ**（割り当てと変換／条件と制御／ループ／アプリケーション／データベース／ファイル システム／JSON／出力値／統合／リモート デバイス／抽出／マウスとキーボード／その他）をカテゴリ名・ステップ名とも正確な日本語表記で網羅。スポット照合（例: 「要素の繰り返し」「ガード チョイス」「コンテニュー」「ツリーの凍結」「REST Web サービス呼出」）一致。
+- パレットは `DasPalette.tsx` がカタログを data-driven で表示。`implemented:false`/`actionType:null` は `opacity-40 cursor-not-allowed`＋`title="この研修ラボでは未対応"`（L189-204）で disabled 表示。**全カタログ表示＋未対応淡色化**の不変条件を満たす。
+- `DAS_ACTION_LABELS`（`dasRobot.ts:251-269`）も 2026.1 正式名（ブラウザ／要素の繰り返し／ガード チョイス 等）。独自造語の混入なし。
+
+**C. 主要ステップのフィールド構成** — ✅ 充足
+- **コンポーネント ファインダー**（`FinderForm.tsx`）: エイリアス／ベース ファインダー（「デバイスを再利用」「前のファインダーを参照」）／デバイス（local）／アプリケーション（cef）／コンポーネント（セレクタ）／□テキスト一致 (Regex) ＝ **公式画像 `GuardedChoiceLocation.png` のフォームと完全一致**。
+- ブラウザ（`StepCardForms.tsx:104-178`）: アクション＝ページ読込／ページ生成／ダウンロードを待機。Windows（L188-273）: デバイス／アクション(実行)／実行可能／引数／最大化を開始。クリック（L283-352）: ファインダー／カウント(1/2)／ボタン(左/右/中央)。値を抽出（L362-428）: コンポーネント／抽出タイプ(テキスト/属性/拡張属性)／現在のインを保存。テキストを入力（L438-488）: ファインダー／テキスト(=変数参照)。要素の繰り返し（L498-574）: スコープ ファインダー名／スコープ ファインダー／要素ファインダー(相対セレクター)。スロー（L584-612）: 例外。リターン（L617-622）。いずれも §5.5 C どおり。
+
+### 公式画像 ⇄ ガードチョイスカード構造の整合（最重要）
+
+`GuardedChoiceLocation.png` / `add_guard2.png` を Read で実視し、`StepCard.tsx:306-332` ＋ `GuardLane.tsx` と突合:
+
+| 公式画像の要素 | 実装 | 判定 |
+|---|---|---|
+| ヘッダ 🖐＋「ガード チョイス」＋^＋? | `ACTION_ICONS.GuardedChoice='🖐'`（StepCard.tsx:44）＋展開ヘッダ ^/?（L232-248） | ✅ |
+| カード内にガードレーンが縦並び | `StepCard.tsx:314-328` で `action.guards` を `space-y-1` で縦配置 | ✅ |
+| 各レーン=種別ドロップダウン＋インライン設定 | `GuardLane.tsx:108-174`（select＋timeout 秒/ファインダーフォーム） | ✅ |
+| ドロップダウン表示「ロケーション...」「秒が経過した...」 | `GUARD_TYPE_DROPDOWN_LABELS`（dasRobot.ts:286-294）＝画像表記と一致 | ✅ |
+| 枝: → ○ → 枝ステップカード（例 ❗スロー TimeOutError）→ ○ | `GuardLane.tsx:177-195`（FlowLine→FlowPoint→`renderBranchSteps`→FlowPoint） | ✅ |
+| レーン間に破線＋緑 ⊕ で追加 | `AddGuardButton`（GuardLane.tsx:206-242、`border-dashed border-green-500`＋緑丸 +） | ✅ |
+| timeout 既定 60 秒 | `GuardLane.tsx:153`（`guard.seconds ?? 60`）＋ catalog 既定 60（DasPalette.tsx:63） | ✅ |
+| 例外フィールド「TimeOutError」 | `ThrowForm`（StepCardForms.tsx:584-612）／既定 exception='TimeOutError' | ✅ |
+
+ガードチョイスカードは公式画像 2 枚の構造（縦レーン＋破線⊕＋枝の横フロー＋例外スロー枝）と整合する。
+
+### 差し戻し 6 点の解消判定
+
+| # | 差し戻し点 | 解消 | 根拠 |
+|---|---|---|---|
+| 1 | 縦ツリー → 横フロー | ✅ | `DasWorkflowView.tsx` HorizontalFlow（左右配置）。縦ツリー撤去 |
+| 2 | 右ペイン編集 → カード内インライン展開 | ✅ | `StepCard.tsx` 展開時インラインフォーム。`DasPropertiesPane.tsx` 削除 |
+| 3 | 独自ラベル → 2026.1 カタログ忠実 | ✅ | `DAS_STEP_CATALOG`（13 カテゴリ全網羅、正式日本語名） |
+| 4 | ガードレーン縦並び＋破線緑⊕ | ✅ | `GuardLane.tsx` ＋ `AddGuardButton`（公式画像整合） |
+| 5 | 下=レコーダービュー／右=状態パネル | ✅ | `DasWorkspaceLayout.tsx:162-167`（下 Recorder）/ `L194-196`（右 状態） |
+| 6 | ファインダー項目（エイリアス〜Regex） | ✅ | `FinderForm.tsx`（公式画像と完全一致） |
+
+### 第1弾リグレッション（git diff 確認）
+
+`git diff --stat HEAD` で第1弾コア（`src/engine/simulator.ts` / `validator.ts` / `stepStatus.ts` / `model/robot.ts` / `engine.test.ts` / `m1〜m5.ts` / `components/ds/`）が **全て無変更**であることを確認。既存 `engine.test.ts` 12 テスト全 pass。D2〜D5 ミッションの差分は `actionSequence` の `OpenWindow → Windows` リネーム（2026.1 カタログ整合）のみで挙動不変。
+
+### 命名移行の健全性
+
+`OpenWindow` アクション種別は 2026.1 の `Windows` に統一（model/simulator/palette/missions すべて移行済み）。`requireOpenWindow` は後方互換 shim としてバリデータに残置（コメント明記）し、テストで `requireWindows` と shim 両方を検証（`das.engine.test.ts:897-917`）。残存 `OpenWindow` 参照はコメント・テスト・shim のみで、実コードパスは `Windows` に一本化。良好。
+
+### セキュリティ／品質（リワーク差分）
+
+- **依存追加**: ✅ なし（`package.json` 不変）。
+- **XSS**: ✅ 新規 `components/das/*` に `dangerouslySetInnerHTML`/`innerHTML`/`eval` なし。FinderForm のセレクタ等は全て制御された input（React 既定エスケープ）。MockApp は静的データ。
+- **決定性**: ✅ `nextDasStepId` はカウンタ（`Math.random` 不使用、dasRobot.ts:296-301）。シミュレータは tick 駆動の純粋関数を維持。
+- **不要コード**: ✅ 旧 `DasPropertiesPane.tsx`/`DasStatusView.tsx` を削除（ビルド 247 modules でツリーシェイク済み、参照残存なし）。
+
+### 指摘事項（リワーク）
+
+**必須修正**: なし。
+
+**推奨修正（任意・将来）**:
+- `StepCard.tsx:309-312` — `GuardedChoice` のガード 0 件警告は `⊕ボタンから追加` を促すが、デフォルトアクション生成（`DasPalette.tsx:57-64`）は locationFound＋timeout の 2 レーンを初期投入するため、パレット経由では 0 件状態は通常発生しない。レコーダー右クリック等で 0 件になる経路のみのフォールバックであり機能上問題なし。文言は現状で妥当。
+- `DasWorkspaceLayout.tsx:113` — `sim as unknown as SimResult`（ResultPanel 共用のための型ブリッジ）。第1弾 ResultPanel 再利用のための意図的措置でコメント可。将来 ResultPanel を das 対応の判別共用型にすると更に堅牢（機能影響なし）。
+
+### 藤田さんへの依頼事項（手動確認・APPROVE を妨げない）
+
+自動チェック（型／テスト／ビルド／コードリーディング／公式画像突合）はすべて充足。以下は体験品質のためブラウザ目視推奨:
+
+1. **横フローの見栄え**: `○—[カード]—○` の連結線・フローポイントが実機 DS の横フローと体感的に一致するか。展開時にカードが縦に伸び後続カードが押し出される挙動が破綻しないか。
+2. **ガードチョイスカード**: 公式画像（縦レーン＋破線緑⊕＋枝の横フロー）と並べて見たとき違和感がないか。⊕ クリックでのレーン追加、種別ドロップダウン切替時のファインダー/秒フォーム出し分けが直感的か。
+3. **ファインダーフォーム**: エイリアス〜Regex の項目配置が `GuardedChoiceLocation.png` と見た目一致するか。
+4. **パレットの未対応淡色化**: 全カタログがカテゴリ折りたたみで表示され、未対応ステップが淡色＋ツールチップで明示されるか。
+5. **D1〜D5 通しプレイ**: 横フロー UI 上でレコーダー右クリック挿入→展開編集→実行→判定→クリアが破綻なく流れるか。

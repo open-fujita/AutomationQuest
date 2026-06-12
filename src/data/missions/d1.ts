@@ -1,11 +1,13 @@
 // D1: はじめての緑ロボット
-// 在庫管理システムを模擬アプリとして使い、ウィンドウを開く→クリック→値を抽出の
+// 在庫管理システムを模擬アプリとして使い、Windows ステップでアプリ起動→クリック→値を抽出の
 // 3ステップを体験する。緑ロボット（Desktop Automation）の基本操作を習得するミッション。
+//
+// 2026.1 リワーク: OpenWindow → Windows（デスクトップアプリなので Windows ステップを使う）
 
 import type { Mission } from '../../model/mission'
 import type { MockApp } from '../../model/mockApp'
 import {
-  requireOpenWindow,
+  requireWindows,
   requireDasAction,
   requireDasNoErrors,
 } from '../../engine/dasValidator'
@@ -105,15 +107,15 @@ export const D1: Mission = {
     },
     {
       id: 'd1-q2',
-      question: '緑ロボットで Windows アプリを操作するとき、最初にすることは？',
+      question: '緑ロボットで Windows アプリを起動するとき、使うステップは？',
       options: [
-        'ページを読み込む（青ロボットと同じ操作）',
-        'ウィンドウを開く（対象アプリのウィンドウを特定する）',
+        'ブラウザ（ブラウザ経由で操作する）',
+        'Windows（実行可能ファイルを指定してアプリを起動する）',
         'いきなりクリックや抽出を始める',
       ],
       correctIndex: 1,
       insight:
-        '緑ロボットの起点は「ウィンドウを開く」です。対象アプリのウィンドウタイトルを指定して接続します。青ロボットの「ページを読み込む」に相当するステップです。',
+        '緑ロボットで Windows デスクトップアプリを起動するには「Windows」ステップを使います。実行可能ファイル（アプリ名）を指定してアプリを起動します。Web ブラウザには「ブラウザ」ステップ、デスクトップアプリには「Windows」ステップと使い分けます。',
     },
     {
       id: 'd1-q3',
@@ -129,7 +131,7 @@ export const D1: Mission = {
     },
   ],
   goals: [
-    '「ウィンドウを開く」ステップで在庫管理システム（v2.1）を開く',
+    '「Windows」ステップで在庫管理システム（inventory.exe または在庫管理システム v2.1）を起動する',
     'レコーダービューで「検索」ボタンを右クリック →「クリック」を追加する',
     'レコーダービューで在庫数の入力欄を右クリック →「値を抽出」を追加し、変数に格納する',
     '実行して、在庫数（128）が変数に取り込まれることを確認する',
@@ -145,15 +147,15 @@ export const D1: Mission = {
   },
   // 推奨ステップ構成ガイド
   dasSuggested: {
-    actionSequence: ['OpenWindow', 'Click', 'ExtractValue'],
-    hint: 'ウィンドウを開く → 検索ボタンをクリック → 在庫数を値を抽出、の 3 ステップが基本形です。',
+    actionSequence: ['Windows', 'Click', 'ExtractValue'],
+    hint: 'Windows → クリック → 値を抽出、の 3 ステップが基本形です。Windows ステップで在庫管理システムを起動し、検索ボタンをクリックして、在庫数を値を抽出で取得します。',
   },
   // 受け入れ条件（構造ベース）
   dasChecks: [
-    requireOpenWindow(
+    requireWindows(
       '在庫管理システム v2.1',
-      '「ウィンドウを開く」で在庫管理システムを開く',
-      '「ウィンドウを開く」ステップを追加し、ウィンドウタイトルに「在庫管理システム v2.1」を設定してください。',
+      '「Windows」ステップで在庫管理システムを起動する',
+      '「Windows」ステップを追加し、実行可能ファイルに「在庫管理システム v2.1」を設定してください。',
     ),
     requireDasAction(
       'Click',

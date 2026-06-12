@@ -187,7 +187,7 @@ export const D5: Mission = {
     robot.variables.push({ name: '売上', typeName: '売上' })
   },
   dasSuggested: {
-    actionSequence: ['OpenWindow', 'ExtractValue'],
+    actionSequence: ['Windows', 'ExtractValue'],
     hint: '「値を抽出」のファインダーに `tablecell[col="売上金額"]` のような属性セレクタを設定します。座標（`[x=...][y=...]`）ではなく、要素の属性名・値で特定するのがポイントです。',
   },
   dasChecks: [

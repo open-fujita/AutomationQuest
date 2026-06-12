@@ -1,405 +1,104 @@
 // ============================================================
-// DasWorkflowView — 緑ロボットの縦ワークフローツリー描画
+// DasWorkflowView — 緑ロボットの横方向フロー描画（2026.1 準拠リワーク）
 //
-// 実機 DS のロボットビュー（縦）を純 DOM ツリーで再現する。
-// @xyflow/react は使わず、div ネスト + border-l の縦線で階層を表現する。
-// アクセシビリティ: role="tree" + role="treeitem" + aria-selected
+// 実機 DS のロボットビューを横フローで再現:
+//   ○（フローポイント）—[StepCard]—○—[StepCard]—○ の左→右配置
+//   青い接続線、折りたたみ/展開 StepCard
+//   ガードチョイス: カード内にガードレーン縦並び（GuardLane）
+//   ForEach / Loop: カード展開時に body の横フロー（再帰）
+//
+// overflow-x: auto でキャンバスをスクロール可能にする。
+// アクセシビリティ: role="region"、aria-label="ワークフロー キャンバス"
 // ============================================================
 
-import type { DasStep, DasAction, Guard, GuardType } from '../../model/dasRobot'
-import { DAS_ACTION_LABELS, GUARD_TYPE_LABELS } from '../../model/dasRobot'
-import { dasStepIssue } from '../../engine/dasStepStatus'
+import React, { useCallback } from 'react'
+import type { DasStep } from '../../model/dasRobot'
 import { useDasRobotStore } from '../../store/dasRobotStore'
 import type { DasSimResult } from '../../engine/dasSimulator'
-import PanelFrame from '../ds/PanelFrame'
+import { FlowPoint, FlowLine } from './FlowPoint'
+import { StepCard } from './StepCard'
 
-// ---- アクション種別ごとのアイコン ----------------------------
+// ---- 横フロー描画（再帰） ------------------------------------
 
-const ACTION_ICONS: Record<string, string> = {
-  OpenWindow: '🪟',
-  Click: '👆',
-  ExtractValue: '🔎',
-  EnterText: '⌨',
-  GuardedChoice: '⚡',
-  ForEach: '↻',
-  Loop: '🔁',
-  Break: '⛔',
-  Continue: '⏭',
-  Condition: '◇',
-  Group: '📦',
-}
-
-// ---- ガード種別ごとのアイコン --------------------------------
-
-const GUARD_ICONS: Record<GuardType, string> = {
-  timeout: '⏱',
-  locationFound: '🔍',
-  locationNotFound: '❌',
-  locationRemoved: '🗑',
-  applicationFound: '🪟',
-  applicationNotFound: '⛔',
-  treeStoppedChanging: '⏸',
-}
-
-// ---- 実行ログ解析ヘルパー ------------------------------------
-
-function getStepStatus(stepId: string, sim: DasSimResult): 'ok' | 'error' | 'skip' | 'guard-matched' | 'guard-waiting' | null {
-  const entry = [...sim.log].reverse().find((e) => e.stepId === stepId)
-  return entry?.status ?? null
-}
-
-function isCurrentStep(stepId: string, sim: DasSimResult): boolean {
-  if (!sim.ran || sim.log.length === 0) return false
-  const last = sim.log[sim.log.length - 1]
-  return last.stepId === stepId
-}
-
-// ---- ステップ行コンポーネント --------------------------------
-
-interface StepRowProps {
-  step: DasStep
-  depth: number
+interface HorizontalFlowProps {
+  steps: DasStep[]
   sim: DasSimResult
   selectedStepId: string | null
   onSelect: (id: string) => void
+  onRemove?: (id: string) => void
+  /** 再帰時は true（最初の FlowPoint を省略しない） */
+  isNested?: boolean
 }
 
-function StepRow({ step, depth, sim, selectedStepId, onSelect }: StepRowProps) {
-  const isSelected = selectedStepId === step.id
-  const isCurrent = isCurrentStep(step.id, sim)
-  const status = getStepStatus(step.id, sim)
-  const issue = dasStepIssue(step)
-
-  const statusColor = {
-    ok: 'text-ds-ok',
-    error: 'text-ds-err',
-    skip: 'text-ds-textDim',
-    'guard-matched': 'text-ds-ok',
-    'guard-waiting': 'text-ds-warn',
-    null: '',
-  }[status ?? 'null']
-
-  const statusMark = {
-    ok: '✓',
-    error: '✕',
-    skip: '–',
-    'guard-matched': '✓',
-    'guard-waiting': '⏳',
-    null: '',
-  }[status ?? 'null']
-
-  return (
-    <div
-      role="treeitem"
-      aria-selected={isSelected}
-      tabIndex={0}
-      onClick={() => onSelect(step.id)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(step.id) }}
-      className={[
-        'flex cursor-pointer select-none items-center gap-1.5 rounded px-1.5 py-1 text-[12px]',
-        'focus:outline-none focus:ring-1 focus:ring-ds-accent2',
-        isSelected ? 'bg-ds-accent2/20 text-ds-text' : 'hover:bg-ds-panelAlt text-ds-text',
-        isCurrent ? 'border-l-2 border-green-400' : `border-l-2 border-transparent`,
-      ].join(' ')}
-      style={{ paddingLeft: `${depth * 16 + 6}px` }}
-    >
-      {/* ステータスマーク */}
-      <span className={`w-4 shrink-0 text-center text-[11px] ${statusColor}`}>{statusMark}</span>
-
-      {/* アクションアイコン */}
-      <span className="shrink-0 text-[13px]">{ACTION_ICONS[step.action.type] ?? '▸'}</span>
-
-      {/* ステップ名 */}
-      <span className={['flex-1 truncate', !step.enabled ? 'opacity-50 line-through' : ''].join(' ')}>
-        {step.name || DAS_ACTION_LABELS[step.action.type]}
-      </span>
-
-      {/* 警告バッジ */}
-      {issue && (
-        <span className="ml-auto shrink-0 text-[10px] text-ds-warn" title={issue}>
-          ⚠
-        </span>
-      )}
-    </div>
-  )
-}
-
-// ---- ガード枝コンポーネント ----------------------------------
-
-interface GuardBranchProps {
-  guard: Guard
-  guardIndex: number
-  parentStepId: string
-  depth: number
-  sim: DasSimResult
-  selectedStepId: string | null
-  onSelect: (id: string) => void
-  isWinner: boolean
-}
-
-function GuardBranch({ guard, guardIndex, depth, sim, selectedStepId, onSelect, isWinner }: GuardBranchProps) {
-  const label = GUARD_TYPE_LABELS[guard.type]
-  const icon = GUARD_ICONS[guard.type]
-
-  return (
-    <div>
-      {/* ガードラベル行 */}
-      <div
-        className={[
-          'flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px]',
-          isWinner ? 'bg-green-400/10 text-green-300' : 'text-ds-textDim',
-        ].join(' ')}
-        style={{ paddingLeft: `${depth * 16 + 6}px` }}
-        aria-label={`ガード ${guardIndex + 1}: ${label}`}
-      >
-        <span className="shrink-0 text-[11px]">{isWinner ? '✓' : '['}</span>
-        <span className="shrink-0">{icon}</span>
-        <span className="truncate">{label}</span>
-        {guard.type === 'timeout' && (
-          <span className="ml-auto shrink-0 text-[10px]">{guard.seconds ?? 60}s</span>
-        )}
-        {!isWinner && <span className="ml-1 shrink-0">]</span>}
-      </div>
-
-      {/* ガード枝内のステップ */}
-      {guard.steps.length > 0 && (
-        <div className="relative">
-          <div
-            className="absolute bottom-1 top-0 border-l border-ds-border/50"
-            style={{ left: `${(depth + 1) * 16 + 6}px` }}
-            aria-hidden="true"
-          />
-          {guard.steps.map((step) => (
-            <StepTree
-              key={step.id}
-              step={step}
-              depth={depth + 2}
-              sim={sim}
-              selectedStepId={selectedStepId}
-              onSelect={onSelect}
-            />
-          ))}
-        </div>
-      )}
-      {guard.steps.length === 0 && (
-        <div
-          className="text-[10px] text-ds-textDim/60 italic"
-          style={{ paddingLeft: `${(depth + 1) * 16 + 6}px` }}
-        >
-          （ステップなし）
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ---- ネストコンテンツ（GuardedChoice / ForEach / Loop / Group） ----
-
-interface NestedContentProps {
-  action: DasAction
-  parentStepId: string
-  depth: number
-  sim: DasSimResult
-  selectedStepId: string | null
-  onSelect: (id: string) => void
-}
-
-function NestedContent({ action, parentStepId, depth, sim, selectedStepId, onSelect }: NestedContentProps) {
-  // ガードチョイスの勝者を取得
-  const winnerGuardType = sim.guardResults.find((gr) => gr.stepId === parentStepId)?.winnerGuardType
-
-  if (action.type === 'GuardedChoice') {
-    return (
-      <div>
-        {action.guards.map((guard, i) => (
-          <GuardBranch
-            key={i}
-            guard={guard}
-            guardIndex={i}
-            parentStepId={parentStepId}
-            depth={depth}
-            sim={sim}
-            selectedStepId={selectedStepId}
-            onSelect={onSelect}
-            isWinner={winnerGuardType === guard.type}
-          />
-        ))}
-        {action.guards.length === 0 && (
-          <div
-            className="text-[10px] text-ds-warn italic"
-            style={{ paddingLeft: `${depth * 16 + 6}px` }}
-          >
-            ガードを追加してください
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  if (action.type === 'ForEach') {
-    return (
-      <div>
-        {/* スコープ情報 */}
-        <div
-          className="text-[10px] text-ds-textDim"
-          style={{ paddingLeft: `${depth * 16 + 6}px` }}
-        >
-          ↻ スコープ: <code className="font-mono">{action.scopeFinder.selector || '(未設定)'}</code>
-        </div>
-        <div
-          className="text-[10px] text-ds-textDim"
-          style={{ paddingLeft: `${depth * 16 + 6}px` }}
-        >
-          &gt; 要素: <code className="font-mono">{action.elementFinder.selector || '(未設定)'}</code>
-        </div>
-        {/* body ステップ */}
-        <div className="relative">
-          <div
-            className="absolute bottom-1 top-0 border-l border-ds-border/50"
-            style={{ left: `${(depth) * 16 + 6}px` }}
-            aria-hidden="true"
-          />
-          {action.body.map((step) => (
-            <StepTree
-              key={step.id}
-              step={step}
-              depth={depth + 1}
-              sim={sim}
-              selectedStepId={selectedStepId}
-              onSelect={onSelect}
-            />
-          ))}
-          {action.body.length === 0 && (
-            <div
-              className="text-[10px] text-ds-textDim/60 italic"
-              style={{ paddingLeft: `${(depth + 1) * 16 + 6}px` }}
-            >
-              （body が空です）
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  if (action.type === 'Loop') {
-    return (
-      <div className="relative">
-        <div
-          className="absolute bottom-1 top-0 border-l border-ds-border/50"
-          style={{ left: `${depth * 16 + 6}px` }}
-          aria-hidden="true"
-        />
-        {action.body.map((step) => (
-          <StepTree
-            key={step.id}
-            step={step}
-            depth={depth + 1}
-            sim={sim}
-            selectedStepId={selectedStepId}
-            onSelect={onSelect}
-          />
-        ))}
-        {action.body.length === 0 && (
-          <div
-            className="text-[10px] text-ds-textDim/60 italic"
-            style={{ paddingLeft: `${(depth + 1) * 16 + 6}px` }}
-          >
-            （body が空です）
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  if (action.type === 'Group') {
-    return (
-      <div className="relative">
-        <div
-          className="absolute bottom-1 top-0 border-l border-ds-border/50"
-          style={{ left: `${depth * 16 + 6}px` }}
-          aria-hidden="true"
-        />
-        {action.steps.map((step) => (
-          <StepTree
-            key={step.id}
-            step={step}
-            depth={depth + 1}
-            sim={sim}
-            selectedStepId={selectedStepId}
-            onSelect={onSelect}
-          />
-        ))}
-      </div>
-    )
-  }
-
-  if (action.type === 'Condition') {
-    return (
-      <div>
-        {action.branches.map((branch, i) => (
-          <div key={i}>
-            <div
-              className="text-[10px] text-ds-textDim"
-              style={{ paddingLeft: `${depth * 16 + 6}px` }}
-            >
-              条件: <code className="font-mono">{branch.condition}</code>
-            </div>
-            {branch.steps.map((step) => (
-              <StepTree
-                key={step.id}
-                step={step}
-                depth={depth + 1}
-                sim={sim}
-                selectedStepId={selectedStepId}
-                onSelect={onSelect}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  return null
-}
-
-// ---- ステップツリー（再帰） -----------------------------------
-
-interface StepTreeProps {
-  step: DasStep
-  depth: number
-  sim: DasSimResult
-  selectedStepId: string | null
-  onSelect: (id: string) => void
-}
-
-function StepTree({ step, depth, sim, selectedStepId, onSelect }: StepTreeProps) {
-  const hasChildren =
-    step.action.type === 'GuardedChoice' ||
-    step.action.type === 'ForEach' ||
-    step.action.type === 'Loop' ||
-    step.action.type === 'Group' ||
-    step.action.type === 'Condition'
-
-  return (
-    <div>
-      <StepRow
-        step={step}
-        depth={depth}
+function HorizontalFlow({
+  steps,
+  sim,
+  selectedStepId,
+  onSelect,
+  onRemove,
+  isNested = false,
+}: HorizontalFlowProps) {
+  // renderSteps: 循環参照を避けて再帰呼び出しするためのコールバック
+  const renderSteps = useCallback(
+    (innerSteps: DasStep[]) => (
+      <HorizontalFlow
+        steps={innerSteps}
         sim={sim}
         selectedStepId={selectedStepId}
         onSelect={onSelect}
+        isNested
       />
-      {hasChildren && (
-        <NestedContent
-          action={step.action}
-          parentStepId={step.id}
-          depth={depth + 1}
-          sim={sim}
-          selectedStepId={selectedStepId}
-          onSelect={onSelect}
-        />
+    ),
+    [sim, selectedStepId, onSelect],
+  )
+
+  return (
+    <div className="flex items-start" role="list" aria-label={isNested ? undefined : 'ステップ一覧'}>
+      {/* 最初の FlowPoint */}
+      <div className="flex items-center self-stretch mt-3">
+        <FlowPoint label={isNested ? undefined : 'フロー開始'} />
+        <FlowLine width={8} />
+      </div>
+
+      {steps.map((step, i) => (
+        <React.Fragment key={step.id}>
+          <div role="listitem" className="flex items-start">
+            {/* ステップカード（展開時は縦に広がる） */}
+            <div className="mt-[5px]">
+              <StepCard
+                step={step}
+                sim={sim}
+                selectedStepId={selectedStepId}
+                onSelect={onSelect}
+                onRemove={onRemove}
+                renderSteps={renderSteps}
+              />
+            </div>
+          </div>
+          {/* カード後の接続線 + フローポイント */}
+          <div className="flex items-center self-stretch mt-3">
+            <FlowLine width={8} />
+            {i < steps.length - 1 && (
+              <>
+                <FlowPoint />
+                <FlowLine width={8} />
+              </>
+            )}
+          </div>
+        </React.Fragment>
+      ))}
+
+      {/* 最後のフローポイント（ステップが 0 件のときは最初の後につける） */}
+      {steps.length === 0 && (
+        <div className="flex items-center self-stretch mt-3">
+          <FlowLine width={16} />
+          <FlowPoint label="フロー終了" />
+        </div>
+      )}
+      {steps.length > 0 && (
+        <div className="flex items-center self-stretch mt-3">
+          <FlowPoint label={isNested ? undefined : 'フロー終了'} />
+        </div>
       )}
     </div>
   )
@@ -412,36 +111,59 @@ export default function DasWorkflowView() {
   const selectedStepId = useDasRobotStore((s) => s.selectedStepId)
   const sim = useDasRobotStore((s) => s.sim)
   const selectStep = useDasRobotStore((s) => s.selectStep)
+  const removeStep = useDasRobotStore((s) => s.removeStep)
 
   return (
-    <PanelFrame title="ロボットビュー" hint="縦ワークフローツリー">
+    <div
+      role="region"
+      aria-label="ワークフロー キャンバス"
+      className="h-full overflow-auto bg-ds-bg p-4"
+    >
+      {/* タブ風ヘッダ（デザイン / デバッグ） */}
+      <div className="flex items-center gap-0 mb-3 shrink-0">
+        <div className="flex rounded-t border border-ds-border bg-ds-bg px-3 py-1 text-[11px] text-ds-text border-b-bg -mb-px z-10">
+          デザイン
+        </div>
+        <div className="flex rounded-t border border-ds-border bg-ds-panelAlt px-3 py-1 text-[11px] text-ds-textDim">
+          デバッグ
+        </div>
+      </div>
+
+      {/* ワークフロー キャンバス */}
       <div
-        role="tree"
-        aria-label="ワークフロー"
-        className="min-h-full p-1"
+        className="min-h-[80px] overflow-x-auto overflow-y-visible"
+        aria-label="ステップフロー"
       >
         {robot.steps.length === 0 ? (
-          <div className="p-4 text-center text-[12px] text-ds-textDim">
-            <div className="mb-1 text-[24px]">🤖</div>
-            パレットからステップを追加するか、
-            <br />
-            レコーダービューで要素を右クリックして
-            <br />
-            ステップを挿入してください
+          <div className="flex items-center gap-2 p-4">
+            {/* 空のフロー表示 */}
+            <div className="flex items-center text-[12px] text-ds-textDim">
+              <div className="w-3 h-3 rounded-full border-2 border-blue-500/40 bg-white shrink-0" aria-hidden="true" />
+              <div className="h-0.5 w-8 bg-blue-500/30" aria-hidden="true" />
+              <div className="flex flex-col items-center justify-center rounded border border-dashed border-ds-border/60 px-4 py-3 text-center min-w-[160px]">
+                <div className="mb-1 text-[20px]">🤖</div>
+                <div className="text-[11px] text-ds-textDim">
+                  パレットからステップを追加するか
+                  <br />
+                  レコーダービューで右クリックして
+                  <br />
+                  ステップを挿入してください
+                </div>
+              </div>
+              <div className="h-0.5 w-8 bg-blue-500/30" aria-hidden="true" />
+              <div className="w-3 h-3 rounded-full border-2 border-blue-500/40 bg-white shrink-0" aria-hidden="true" />
+            </div>
           </div>
         ) : (
-          robot.steps.map((step) => (
-            <StepTree
-              key={step.id}
-              step={step}
-              depth={0}
-              sim={sim}
-              selectedStepId={selectedStepId}
-              onSelect={selectStep}
-            />
-          ))
+          <HorizontalFlow
+            steps={robot.steps}
+            sim={sim}
+            selectedStepId={selectedStepId}
+            onSelect={selectStep}
+            onRemove={removeStep}
+          />
         )}
       </div>
-    </PanelFrame>
+    </div>
   )
 }

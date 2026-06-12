@@ -223,7 +223,7 @@ export const D3: Mission = {
     robot.variables.push({ name: '進捗結果', typeName: '進捗結果' })
   },
   dasSuggested: {
-    actionSequence: ['OpenWindow', 'GuardedChoice', 'Click'],
+    actionSequence: ['Windows', 'GuardedChoice', 'Click'],
     requiredGuards: ['applicationFound', 'timeout'],
     hint: 'ガードチョイスに「該当するアプリケーション」（通知ウィンドウを待つ）と「時間経過」（通知なし時のフォールバック）を設定。Application Found が成立したら「閉じる」ボタンをクリックします。',
   },

@@ -1,14 +1,16 @@
 // ============================================================
-// DasWorkspaceLayout — 緑ロボット専用の全体レイアウト
+// DasWorkspaceLayout — 緑ロボット専用の全体レイアウト（2026.1 準拠リワーク）
 //
-// 青ロボット（App.tsx の既存レイアウト）と完全に独立したコンポーネント。
-// App.tsx で mission.robotType === 'das' の場合にここを描画する。
+// 実機 DS のレイアウト構成（DS_2.png 準拠）:
+//   左:   マイプロジェクト + DasPalette（カタログ表示）
+//   中央上: タブバー（デザイン/デバッグ + ロボットファイルタブ）
+//   中央:  ワークフローキャンバス（横フロー: ○—[Card]—○）overflow-x: auto
+//   下:   レコーダービュー（模擬アプリ画面 | 要素ツリー）
+//   右:   状態（変数）パネル + tick スライダー（DasStatePane）
 //
-// レイアウト構成（実機 DS 参考）:
-//   左: マイプロジェクト + DasPalette
-//   中: DasWorkflowView（上）+ RecorderView（下）
-//   右: DasPropertiesPane（上）+ DasStatusView（下）
-//   上: Toolbar + MissionBar
+// 変更点（旧実装との差分）:
+//   - 右パネル: 状態（変数）パネル（DasStatePane）
+//   - 中央: ワークフロービュー + 下部レコーダービューの縦分割に変更
 // ============================================================
 
 import { useEffect, useMemo, useState } from 'react'
@@ -29,9 +31,8 @@ import ProgressMap from '../game/ProgressMap'
 
 import DasWorkflowView from './DasWorkflowView'
 import RecorderView from './RecorderView'
-import DasPropertiesPane from './DasPropertiesPane'
 import DasPalette from './DasPalette'
-import DasStatusView from './DasStatusView'
+import DasStatePane from './DasStatePane'
 import MyProjectsPane from '../ds/MyProjectsPane'
 
 interface DasWorkspaceLayoutProps {
@@ -68,7 +69,6 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
   // DAS バリデーション（dasChecks がある場合のみ）
   const validation = useMemo(() => {
     if (!mission.dasChecks || mission.dasChecks.length === 0) {
-      // dasChecks がないミッションのための空バリデーション
       return {
         pass: sim.ran && sim.errors.length === 0,
         outcomes: [],
@@ -81,7 +81,6 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
   // 実行ボタン
   const onRun = () => {
     if (!mission.mockApp) {
-      // mockApp がないミッションは空実行
       setSim({ ran: true, data: {}, log: [], errors: [], totalTick: 0, guardResults: [] })
       return
     }
@@ -90,7 +89,6 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
       defaultTimeoutTick: 60,
     })
     setSim(result)
-    // 実行後は最終 tick を表示
     setCurrentTick(result.totalTick)
   }
 
@@ -112,9 +110,6 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
 
   const showWorkspaceChrome = phase === 'build' || phase === 'result'
 
-  // DAS ミッション用 ResultPanel に渡す sim（型変換: DasSimResult → SimResult 相当）
-  // ResultPanel は mission.reveal(sim) を呼ぶが、DAS ミッションの reveal は undefined のことが多い
-  // reveal が未定義の場合はデフォルト文字列を使う
   const dasSimForResult = sim as unknown as import('../../model/sim').SimResult
 
   return (
@@ -135,17 +130,19 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
       )}
 
       <main className="flex min-h-0 flex-1">
-        {/* 左: マイプロジェクト + パレット */}
-        <div className="flex w-[220px] shrink-0 flex-col border-r border-ds-border">
-          <div className="min-h-0 flex-1">
+        {/* ---- 左: マイプロジェクト + パレット ---- */}
+        <div className="flex w-[200px] shrink-0 flex-col border-r border-ds-border overflow-hidden">
+          <div className="shrink-0">
             <MyProjectsPane />
           </div>
-          <DasPalette />
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <DasPalette />
+          </div>
         </div>
 
-        {/* 中央: ロボットビュー（上）+ レコーダービュー（下） */}
+        {/* ---- 中央: ワークフローキャンバス（上）+ レコーダービュー（下）---- */}
         <div className="flex min-w-0 flex-1 flex-col border-r border-ds-border">
-          {/* デザイン/デバッグ + ファイルタブ（緑ロボット版） */}
+          {/* タブバー: デザイン/デバッグ + ロボットファイルタブ */}
           <div className="flex shrink-0 items-center gap-1 border-b border-ds-border bg-ds-panelAlt px-2 py-1 text-[12px]">
             <span className="rounded bg-green-500/20 px-2 py-0.5 text-[11px] text-green-300">
               緑ロボット（DAS）
@@ -156,13 +153,13 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
             </span>
           </div>
 
-          {/* ロボットビュー（上半分） */}
-          <div className="min-h-0 flex-1 border-b border-ds-border">
+          {/* ワークフローキャンバス（上: flex-1, min-h-0） */}
+          <div className="min-h-0 flex-1 border-b border-ds-border overflow-hidden">
             <DasWorkflowView />
           </div>
 
-          {/* レコーダービュー（下半分） */}
-          <div className="min-h-0 flex-1">
+          {/* レコーダービュー（下: 固定高 h-[280px]） */}
+          <div className="h-[280px] shrink-0 overflow-hidden">
             <RecorderView
               app={mission.mockApp ?? null}
               currentTick={currentTick}
@@ -170,34 +167,32 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
           </div>
         </div>
 
-        {/* 右: プロパティ（上）+ ステータス（下） */}
-        <div className="flex w-[330px] shrink-0 flex-col">
-          <div className="min-h-0 flex-1 border-b border-ds-border">
-            <DasPropertiesPane />
-          </div>
-          <div className="min-h-0 flex-1">
-            {/* tick スライダー（模擬アプリの時間軸コントロール） */}
-            {mission.mockApp && mission.mockApp.timeline.length > 0 && (
-              <div className="shrink-0 border-b border-ds-border bg-ds-panelAlt px-3 py-1.5">
-                <div className="flex items-center gap-2 text-[11px]">
-                  <label htmlFor="tick-slider" className="shrink-0 text-ds-textDim">
-                    tick:
-                  </label>
-                  <input
-                    id="tick-slider"
-                    type="range"
-                    min={0}
-                    max={120}
-                    value={currentTick}
-                    onChange={(e) => setCurrentTick(Number(e.target.value))}
-                    className="flex-1 accent-ds-accent2"
-                    aria-label="模擬アプリの時間軸（tick）"
-                  />
-                  <span className="w-8 shrink-0 text-right font-mono text-ds-text">{currentTick}</span>
-                </div>
+        {/* ---- 右: 状態（変数）パネル + tick スライダー ---- */}
+        <div className="flex w-[280px] shrink-0 flex-col overflow-hidden">
+          {/* tick スライダー（mockApp がある場合のみ表示） */}
+          {mission.mockApp && mission.mockApp.timeline.length > 0 && (
+            <div className="shrink-0 border-b border-ds-border bg-ds-panelAlt px-3 py-2">
+              <div className="flex items-center gap-2 text-[11px]">
+                <label htmlFor="tick-slider-das" className="shrink-0 text-ds-textDim">
+                  tick:
+                </label>
+                <input
+                  id="tick-slider-das"
+                  type="range"
+                  min={0}
+                  max={120}
+                  value={currentTick}
+                  onChange={(e) => setCurrentTick(Number(e.target.value))}
+                  className="flex-1 accent-ds-accent2"
+                  aria-label="模擬アプリの時間軸（tick）"
+                />
+                <span className="w-8 shrink-0 text-right font-mono text-ds-text">{currentTick}</span>
               </div>
-            )}
-            <DasStatusView />
+            </div>
+          )}
+          {/* 状態パネル（変数一覧 + 実行ログ）*/}
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <DasStatePane />
           </div>
         </div>
       </main>

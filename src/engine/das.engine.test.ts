@@ -11,6 +11,12 @@
 //   7. D5: 列シャッフル後に座標固定で失敗 / 属性セレクタで成功
 //   8. バリデータの各チェックビルダー true/false 境界テスト
 //   9. dasStepIssue の各ステップ種別不備検出テスト
+//
+// 2026.1 リワーク:
+//   ・OpenWindow → Windows（デスクトップアプリはすべて Windows ステップ）
+//   ・requireOpenWindow テストを requireWindows / requireOpenWindow(shim) 両方で確認
+//   ・dasStepIssue: OpenWindow → Windows / Browser case に更新
+//   ・Throw / Return の実行テストを追加
 // ============================================================
 
 import { describe, it, expect } from 'vitest'
@@ -33,6 +39,8 @@ import {
   requireGuardMatched,
   requireDasNoErrors,
   requireOpenWindow,
+  requireWindows,
+  requireBrowser,
 } from './dasValidator'
 import { dasStepIssue } from './dasStepStatus'
 
@@ -886,14 +894,43 @@ describe('バリデータ チェックビルダー', () => {
     expect(requireGuardOfType('applicationFound', 'label', 'hint').test(ctx)).toBe(false)
   })
 
-  it('requireOpenWindow: windowTitle が一致すると true', () => {
+  it('requireWindows: executable が一致すると true', () => {
     const robot = makeRobot([
-      makeStep('s1', { type: 'OpenWindow', windowTitle: '在庫管理システム', appName: 'inventory.exe' }),
+      makeStep('s1', { type: 'Windows', device: 'local', windowsAction: 'execute', executable: '在庫管理システム v2.1' }),
     ])
-    const sim = runDasRobot(robot, makeApp('在庫管理システム', [makeWidget('win', 'window', { title: '在庫管理システム' })]))
+    const app = makeApp('在庫管理システム v2.1', [makeWidget('win', 'window', { title: '在庫管理システム v2.1' })])
+    const sim = runDasRobot(robot, app)
+    const ctx = { robot, sim }
+    expect(requireWindows('在庫管理システム v2.1', 'label', 'hint').test(ctx)).toBe(true)
+    expect(requireWindows('別のシステム', 'label', 'hint').test(ctx)).toBe(false)
+  })
+
+  it('requireOpenWindow (shim): Windows ステップで windowTitle が executable と一致すると true', () => {
+    // requireOpenWindow は後方互換 shim として Windows ステップも確認する
+    const robot = makeRobot([
+      makeStep('s1', { type: 'Windows', device: 'local', windowsAction: 'execute', executable: '在庫管理システム' }),
+    ])
+    const app = makeApp('在庫管理システム', [makeWidget('win', 'window', { title: '在庫管理システム' })])
+    const sim = runDasRobot(robot, app)
     const ctx = { robot, sim }
     expect(requireOpenWindow('在庫管理システム', 'label', 'hint').test(ctx)).toBe(true)
     expect(requireOpenWindow('別のシステム', 'label', 'hint').test(ctx)).toBe(false)
+  })
+
+  it('requireBrowser: applicationName が一致すると true', () => {
+    const robot = makeRobot([
+      makeStep('s1', {
+        type: 'Browser',
+        browser: 'Chromium',
+        browserAction: 'pageLoad',
+        applicationName: 'MyBrowser',
+        url: 'https://example.com',
+      }),
+    ])
+    const sim = runDasRobot(robot, emptyApp)
+    const ctx = { robot, sim }
+    expect(requireBrowser('MyBrowser', 'label', 'hint').test(ctx)).toBe(true)
+    expect(requireBrowser('OtherApp', 'label', 'hint').test(ctx)).toBe(false)
   })
 
   it('requireDasNoErrors: エラーなしで true', () => {
@@ -969,18 +1006,23 @@ describe('バリデータ チェックビルダー', () => {
 // ============================================================
 
 describe('dasStepIssue', () => {
-  it('OpenWindow: windowTitle 未設定を検出', () => {
-    const step = makeStep('s1', { type: 'OpenWindow', windowTitle: '', appName: 'app.exe' })
-    expect(dasStepIssue(step)).toMatch(/ウィンドウタイトル/)
+  it('Windows: executable 未設定を検出', () => {
+    const step = makeStep('s1', { type: 'Windows', device: 'local', windowsAction: 'execute', executable: '' })
+    expect(dasStepIssue(step)).toMatch(/実行可能ファイル/)
   })
 
-  it('OpenWindow: appName 未設定を検出', () => {
-    const step = makeStep('s1', { type: 'OpenWindow', windowTitle: 'title', appName: '' })
-    expect(dasStepIssue(step)).toMatch(/アプリ名/)
+  it('Windows: 設定済みは null を返す', () => {
+    const step = makeStep('s1', { type: 'Windows', device: 'local', windowsAction: 'execute', executable: 'inventory.exe' })
+    expect(dasStepIssue(step)).toBeNull()
   })
 
-  it('OpenWindow: 設定済みは null を返す', () => {
-    const step = makeStep('s1', { type: 'OpenWindow', windowTitle: '在庫管理', appName: 'inv.exe' })
+  it('Browser: applicationName と url が両方空なら検出', () => {
+    const step = makeStep('s1', { type: 'Browser', browser: 'Chromium', browserAction: 'pageLoad', applicationName: '', url: '' })
+    expect(dasStepIssue(step)).toMatch(/アプリケーション名/)
+  })
+
+  it('Browser: url だけ設定されていれば null を返す', () => {
+    const step = makeStep('s1', { type: 'Browser', browser: 'Chromium', browserAction: 'pageLoad', applicationName: '', url: 'https://example.com' })
     expect(dasStepIssue(step)).toBeNull()
   })
 
@@ -1057,9 +1099,20 @@ describe('dasStepIssue', () => {
     expect(dasStepIssue(step)).toMatch(/body/)
   })
 
-  it('Break / Continue は null を返す', () => {
+  it('Break / Continue / Return は null を返す', () => {
     expect(dasStepIssue(makeStep('s1', { type: 'Break' }))).toBeNull()
     expect(dasStepIssue(makeStep('s2', { type: 'Continue' }))).toBeNull()
+    expect(dasStepIssue(makeStep('s3', { type: 'Return' }))).toBeNull()
+  })
+
+  it('Throw: exception 未設定を検出', () => {
+    const step = makeStep('s1', { type: 'Throw', exception: '' })
+    expect(dasStepIssue(step)).toMatch(/例外種別/)
+  })
+
+  it('Throw: 設定済みは null を返す', () => {
+    const step = makeStep('s1', { type: 'Throw', exception: 'TimeOutError' })
+    expect(dasStepIssue(step)).toBeNull()
   })
 
   it('Group: name 未設定を検出', () => {
@@ -1079,9 +1132,6 @@ describe('ガードチョイス 排他実行', () => {
     ])
 
     // locationFound が timeout より先に成立するはず（button は visible=true なので tick=0 で成立）
-    let firstGuardExecuted = false
-    let secondGuardExecuted = false
-
     const robot = makeRobot([
       makeStep('gc1', {
         type: 'GuardedChoice',
@@ -1123,5 +1173,78 @@ describe('ガードチョイス 排他実行', () => {
     expect(sim.data['firstResult']).toBeDefined()
     // secondResult は undefined（timeout 枝は実行されなかった）
     expect(sim.data['secondResult']).toBeUndefined()
+  })
+})
+
+// ============================================================
+// 11. Throw / Return の実行テスト（2026.1 追加）
+// ============================================================
+
+describe('Throw / Return の実行', () => {
+  const emptyApp = makeApp('TestApp', [])
+
+  it('Throw ステップは errors に例外メッセージを記録する', () => {
+    const robot = makeRobot([
+      makeStep('throw1', { type: 'Throw', exception: 'TimeOutError' }),
+    ])
+    const sim = runDasRobot(robot, emptyApp)
+    expect(sim.errors.some((e) => e.includes('TimeOutError'))).toBe(true)
+  })
+
+  it('Return ステップは正常終了し errors は空', () => {
+    const robot = makeRobot([
+      makeStep('return1', { type: 'Return' }),
+      // Return 後のステップは実行されない
+      makeStep('click1', { type: 'Click', finder: defaultFinder('button[name="NotExist"]') }),
+    ])
+    const sim = runDasRobot(robot, emptyApp)
+    expect(sim.ran).toBe(true)
+    expect(sim.errors).toHaveLength(0)
+  })
+
+  it('ガードチョイス枝内の Throw はエラーとして記録される', () => {
+    const robot = makeRobot([
+      makeStep('gc1', {
+        type: 'GuardedChoice',
+        guards: [
+          {
+            type: 'timeout',
+            seconds: 1,
+            steps: [
+              makeStep('throw-in-guard', { type: 'Throw', exception: 'TimeOutError' }),
+            ],
+          },
+        ],
+      }),
+    ])
+    const sim = runDasRobot(robot, emptyApp)
+    expect(sim.errors.some((e) => e.includes('TimeOutError'))).toBe(true)
+  })
+
+  it('Windows ステップは ok ログを記録する', () => {
+    const app = makeApp('在庫管理システム', [
+      makeWidget('win', 'window', { title: '在庫管理システム' }),
+    ])
+    const robot = makeRobot([
+      makeStep('win1', { type: 'Windows', device: 'local', windowsAction: 'execute', executable: '在庫管理システム' }),
+    ])
+    const sim = runDasRobot(robot, app)
+    expect(sim.errors).toHaveLength(0)
+    expect(sim.log.some((l) => l.status === 'ok' && l.stepName === 'win1')).toBe(true)
+  })
+
+  it('Browser ステップは ok ログを記録する', () => {
+    const robot = makeRobot([
+      makeStep('browser1', {
+        type: 'Browser',
+        browser: 'Chromium',
+        browserAction: 'pageLoad',
+        applicationName: 'TestBrowser',
+        url: 'https://example.com',
+      }),
+    ])
+    const sim = runDasRobot(robot, emptyApp)
+    expect(sim.errors).toHaveLength(0)
+    expect(sim.log.some((l) => l.status === 'ok' && l.stepName === 'browser1')).toBe(true)
   })
 })

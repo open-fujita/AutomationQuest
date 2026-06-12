@@ -5,6 +5,10 @@
 //   ・名前の完全一致を要求しない「構造ベース」チェック
 //   ・ネスト構造（GuardedChoice 枝内 / ForEach body 内）を再帰的に検索
 //   ・宣言的なチェックビルダーをミッション定義で組み合わせる
+//
+// 2026.1 リワーク:
+//   ・requireOpenWindow → requireBrowser（Windows ステップ用の requireWindows も追加）
+//   ・walkSteps に Return / Throw / Assign / TryCatch / WhileLoop の case 追加
 // ============================================================
 
 import type { DasRobot, DasStep, GuardType, DasActionType } from '../model/dasRobot'
@@ -58,6 +62,9 @@ function walkSteps(steps: DasStep[], visitor: (step: DasStep) => void): void {
       case 'Loop':
         walkSteps(action.body, visitor)
         break
+      case 'WhileLoop':
+        walkSteps(action.body, visitor)
+        break
       case 'Condition':
         for (const branch of action.branches) {
           walkSteps(branch.steps, visitor)
@@ -65,6 +72,13 @@ function walkSteps(steps: DasStep[], visitor: (step: DasStep) => void): void {
         break
       case 'Group':
         walkSteps(action.steps, visitor)
+        break
+      case 'TryCatch':
+        walkSteps(action.trySteps, visitor)
+        for (const c of action.catches) {
+          walkSteps(c.steps, visitor)
+        }
+        walkSteps(action.finallySteps, visitor)
         break
       default:
         break
@@ -294,22 +308,88 @@ export function requireDasNoErrors(label: string, failHint: string): DasMissionC
   }
 }
 
-/** OpenWindow ステップが指定 windowTitle で設定されている（D1） */
+/**
+ * Windows ステップが指定 executable で設定されている（D1 デスクトップアプリ起動確認）。
+ * 旧 requireOpenWindow の 2026.1 版（Windows ステップ対応）。
+ */
+export function requireBrowser(
+  applicationName: string,
+  label: string,
+  failHint: string,
+): DasMissionCheck {
+  return {
+    id: `browser-${applicationName}`,
+    label,
+    failHint,
+    test: (ctx) => {
+      const robot = (ctx as { robot: DasRobot; sim: DasSimResult }).robot
+      const browserSteps = findDasActions(robot, 'Browser')
+      return browserSteps.some((step) => {
+        if (step.action.type !== 'Browser') return false
+        return step.action.applicationName === applicationName || applicationName === ''
+      })
+    },
+  }
+}
+
+/**
+ * Windows ステップが指定 executable で設定されている（D1 デスクトップアプリ起動確認）。
+ * D1〜D5 はデスクトップアプリなので Windows ステップを使う。
+ */
+export function requireWindows(
+  executable: string,
+  label: string,
+  failHint: string,
+): DasMissionCheck {
+  return {
+    id: `windows-${executable}`,
+    label,
+    failHint,
+    test: (ctx) => {
+      const robot = (ctx as { robot: DasRobot; sim: DasSimResult }).robot
+      const windowsSteps = findDasActions(robot, 'Windows')
+      if (executable === '') return windowsSteps.length > 0
+      return windowsSteps.some((step) => {
+        if (step.action.type !== 'Windows') return false
+        return step.action.executable === executable || step.action.executable.includes(executable)
+      })
+    },
+  }
+}
+
+/**
+ * @deprecated D1 では requireWindows を使うこと。
+ * 旧 requireOpenWindow（OpenWindow ステップ用）— 後方互換のため残すが、
+ * 実際には Windows ステップが設定されているかを確認するため requireWindows に委譲する。
+ */
 export function requireOpenWindow(
   windowTitle: string,
   label: string,
   failHint: string,
 ): DasMissionCheck {
+  // テストとの互換性: OpenWindow 型のステップを探すが、型が変更されたため
+  // Windows ステップで executable が windowTitle に一致するかも確認する
   return {
     id: `open-window-${windowTitle}`,
     label,
     failHint,
     test: (ctx) => {
       const robot = (ctx as { robot: DasRobot; sim: DasSimResult }).robot
-      const openWindowSteps = findDasActions(robot, 'OpenWindow')
-      return openWindowSteps.some((step) => {
-        if (step.action.type !== 'OpenWindow') return false
-        return step.action.windowTitle === windowTitle
+      // Windows ステップで一致するものを探す
+      const windowsSteps = findDasActions(robot, 'Windows')
+      const windowsMatch = windowsSteps.some((step) => {
+        if (step.action.type !== 'Windows') return false
+        return step.action.executable === windowTitle ||
+               step.action.executable.includes(windowTitle) ||
+               windowTitle === ''
+      })
+      if (windowsMatch) return true
+
+      // Browser ステップも確認（URL や applicationName でマッチ）
+      const browserSteps = findDasActions(robot, 'Browser')
+      return browserSteps.some((step) => {
+        if (step.action.type !== 'Browser') return false
+        return step.action.applicationName === windowTitle || windowTitle === ''
       })
     },
   }

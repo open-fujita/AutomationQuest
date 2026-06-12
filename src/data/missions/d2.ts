@@ -165,7 +165,7 @@ export const D2: Mission = {
     robot.variables.push({ name: '申請結果', typeName: '申請結果' })
   },
   dasSuggested: {
-    actionSequence: ['OpenWindow', 'GuardedChoice', 'Click'],
+    actionSequence: ['Windows', 'GuardedChoice', 'Click'],
     requiredGuards: ['locationFound', 'timeout'],
     hint: 'ガードチョイスに「該当するロケーション」（送信ボタンが有効化されるのを待つ）と「時間経過」（フォールバック）を設定し、成立したら「クリック」で送信します。',
   },
