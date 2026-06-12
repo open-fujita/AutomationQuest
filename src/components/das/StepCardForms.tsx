@@ -88,11 +88,13 @@ export function findStepById(steps: DasStep[], id: string): DasStep | null {
   return null
 }
 
-// ---- 共通スタイル -------------------------------------------
+// ---- 共通スタイル（ライトテーマ）------------------------------
+// ラベル: text-das-textDim = gray-600 相当、白地でコントラスト比 5.9:1
+// 入力欄: 白地 + das-border 枠 + das-text 文字（ほぼ黒）
 
 const inputCls =
-  'w-full rounded border border-ds-border bg-ds-bg px-2 py-1 text-[11px] text-ds-text focus:border-ds-accent2 focus:outline-none'
-const labelCls = 'block text-[10px] text-ds-textDim mb-0.5'
+  'w-full rounded border border-das-border bg-white px-2 py-1 text-[11px] text-das-text focus:border-das-accent2 focus:outline-none'
+const labelCls = 'block text-[10px] text-das-textDim mb-0.5 font-medium'
 const fieldWrap = 'mb-2'
 
 // ---- Browser フォーム ----------------------------------------
@@ -124,7 +126,7 @@ export function BrowserForm({ step, action }: BrowserFormProps) {
         <select
           id={`br-browser-${step.id}`}
           value={action.browser}
-          className="w-full rounded border border-ds-border bg-ds-panelAlt px-1.5 py-1 text-[11px] text-ds-text focus:border-ds-accent2 focus:outline-none"
+          className="w-full rounded border border-das-border bg-white px-1.5 py-1 text-[11px] text-das-text focus:border-das-accent2 focus:outline-none"
           disabled
           aria-label="ブラウザ種別"
         >
@@ -139,7 +141,7 @@ export function BrowserForm({ step, action }: BrowserFormProps) {
           id={`br-action-${step.id}`}
           value={action.browserAction}
           onChange={(e) => updateField('browserAction', e.target.value)}
-          className="w-full rounded border border-ds-border bg-ds-panelAlt px-1.5 py-1 text-[11px] text-ds-text focus:border-ds-accent2 focus:outline-none"
+          className="w-full rounded border border-das-border bg-white px-1.5 py-1 text-[11px] text-das-text focus:border-das-accent2 focus:outline-none"
           aria-label="ブラウザ アクション"
         >
           <option value="pageLoad">ページ読込</option>
@@ -222,7 +224,7 @@ export function WindowsForm({ step, action }: WindowsFormProps) {
         <select
           id={`win-action-${step.id}`}
           value={action.windowsAction}
-          className="w-full rounded border border-ds-border bg-ds-panelAlt px-1.5 py-1 text-[11px] text-ds-text focus:border-ds-accent2 focus:outline-none"
+          className="w-full rounded border border-das-border bg-white px-1.5 py-1 text-[11px] text-das-text focus:border-das-accent2 focus:outline-none"
           disabled
           aria-label="Windows アクション"
         >
@@ -263,10 +265,10 @@ export function WindowsForm({ step, action }: WindowsFormProps) {
           type="checkbox"
           checked={action.startMaximized ?? false}
           onChange={(e) => updateField('startMaximized', e.target.checked)}
-          className="accent-ds-accent2"
+          className="accent-das-accent2"
           aria-label="最大化を開始"
         />
-        <label htmlFor={`win-maxim-${step.id}`} className="text-[10px] text-ds-textDim cursor-pointer">
+        <label htmlFor={`win-maxim-${step.id}`} className="text-[10px] text-das-textDim cursor-pointer">
           最大化を開始
         </label>
       </div>
@@ -309,7 +311,7 @@ export function ClickForm({ step, action }: ClickFormProps) {
   return (
     <div className="space-y-2">
       <div>
-        <div className="text-[10px] text-ds-textDim mb-1">コンポーネント（ファインダー）</div>
+        <div className="text-[10px] text-das-textDim mb-1">コンポーネント（ファインダー）</div>
         <FinderForm
           finder={action.finder}
           onChange={updateFinder}
@@ -325,7 +327,7 @@ export function ClickForm({ step, action }: ClickFormProps) {
             id={`click-count-${step.id}`}
             value={action.clickCount ?? 1}
             onChange={(e) => updateField('clickCount', Number(e.target.value))}
-            className="w-full rounded border border-ds-border bg-ds-panelAlt px-1.5 py-0.5 text-[11px] text-ds-text focus:border-ds-accent2 focus:outline-none"
+            className="w-full rounded border border-das-border bg-white px-1.5 py-0.5 text-[11px] text-das-text focus:border-das-accent2 focus:outline-none"
             aria-label="クリック回数"
           >
             <option value={1}>1（シングル）</option>
@@ -340,7 +342,7 @@ export function ClickForm({ step, action }: ClickFormProps) {
             id={`click-btn-${step.id}`}
             value={action.button ?? 'left'}
             onChange={(e) => updateField('button', e.target.value)}
-            className="w-full rounded border border-ds-border bg-ds-panelAlt px-1.5 py-0.5 text-[11px] text-ds-text focus:border-ds-accent2 focus:outline-none"
+            className="w-full rounded border border-das-border bg-white px-1.5 py-0.5 text-[11px] text-das-text focus:border-das-accent2 focus:outline-none"
             aria-label="マウスボタン"
           >
             <option value="left">左</option>
@@ -388,7 +390,7 @@ export function ExtractValueForm({ step, action }: ExtractValueFormProps) {
   return (
     <div className="space-y-2">
       <div>
-        <div className="text-[10px] text-ds-textDim mb-1">コンポーネント</div>
+        <div className="text-[10px] text-das-textDim mb-1">コンポーネント</div>
         <FinderForm
           finder={action.finder}
           onChange={updateFinder}
@@ -403,7 +405,7 @@ export function ExtractValueForm({ step, action }: ExtractValueFormProps) {
           id={`ev-type-${step.id}`}
           value={action.attribute}
           onChange={(e) => updateField('attribute', e.target.value)}
-          className="w-full rounded border border-ds-border bg-ds-panelAlt px-1.5 py-0.5 text-[11px] text-ds-text focus:border-ds-accent2 focus:outline-none"
+          className="w-full rounded border border-das-border bg-white px-1.5 py-0.5 text-[11px] text-das-text focus:border-das-accent2 focus:outline-none"
           aria-label="抽出タイプ"
         >
           <option value="text">テキスト</option>
@@ -464,7 +466,7 @@ export function EnterTextForm({ step, action }: EnterTextFormProps) {
   return (
     <div className="space-y-2">
       <div>
-        <div className="text-[10px] text-ds-textDim mb-1">ファインダー</div>
+        <div className="text-[10px] text-das-textDim mb-1">ファインダー</div>
         <FinderForm
           finder={action.finder}
           onChange={updateFinder}
@@ -522,10 +524,10 @@ export function ForEachForm({ step, action }: ForEachFormProps) {
   return (
     <div className="space-y-2">
       {/* スコープ ファインダー（折りたたみ可能） */}
-      <div className="rounded border border-ds-border/60">
+      <div className="rounded border border-das-border">
         <button
           type="button"
-          className="flex w-full items-center gap-1 px-2 py-1 text-left text-[10px] text-ds-textDim hover:text-ds-text"
+          className="flex w-full items-center gap-1 px-2 py-1 text-left text-[10px] text-das-textDim hover:text-das-text"
           onClick={() => setScopeExpanded((v) => !v)}
           aria-expanded={scopeExpanded}
           aria-label="スコープ ファインダー セクションを切り替え"
@@ -534,7 +536,7 @@ export function ForEachForm({ step, action }: ForEachFormProps) {
           <span className="font-medium">スコープ ファインダー</span>
         </button>
         {scopeExpanded && (
-          <div className="border-t border-ds-border/40 px-2 pb-2 pt-1">
+          <div className="border-t border-das-border px-2 pb-2 pt-1">
             <FinderForm
               finder={action.scopeFinder}
               onChange={updateScopeFinder}
@@ -587,10 +589,10 @@ export function ForEachForm({ step, action }: ForEachFormProps) {
           type="checkbox"
           checked={action.excludeFirst ?? false}
           onChange={(e) => updateField({ excludeFirst: e.target.checked })}
-          className="accent-ds-accent2"
+          className="accent-das-accent2"
           aria-label="最初を除外"
         />
-        <label htmlFor={`fe-excl-${step.id}`} className="text-[10px] text-ds-textDim cursor-pointer">
+        <label htmlFor={`fe-excl-${step.id}`} className="text-[10px] text-das-textDim cursor-pointer">
           最初を除外
         </label>
       </div>
@@ -602,10 +604,10 @@ export function ForEachForm({ step, action }: ForEachFormProps) {
           type="checkbox"
           checked={action.iterationVariable ?? false}
           onChange={(e) => updateField({ iterationVariable: e.target.checked })}
-          className="accent-ds-accent2"
+          className="accent-das-accent2"
           aria-label="イテレーション変数"
         />
-        <label htmlFor={`fe-itervar-${step.id}`} className="text-[10px] text-ds-textDim cursor-pointer">
+        <label htmlFor={`fe-itervar-${step.id}`} className="text-[10px] text-das-textDim cursor-pointer">
           イテレーション変数
         </label>
       </div>
@@ -664,7 +666,7 @@ export function WhileLoopForm({ step, action }: WhileLoopFormProps) {
           aria-label="ループ継続条件（テスト）"
         />
       </div>
-      <div className="rounded bg-ds-panelAlt p-1.5 text-[10px] text-ds-textDim">
+      <div className="rounded bg-das-panelAlt p-1.5 text-[10px] text-das-textDim">
         各イテレーション前に評価されます。true ならば本体を実行、false でループ終了。
       </div>
     </div>
@@ -713,7 +715,7 @@ export function ThrowForm({ step, action }: ThrowFormProps) {
 
 export function ReturnForm() {
   return (
-    <div className="text-[11px] text-ds-textDim italic p-1">
+    <div className="text-[11px] text-das-textDim italic p-1">
       ↵ ロボットを終了し、呼び出し元に戻ります。
     </div>
   )
@@ -750,7 +752,7 @@ export function StepNameEditor({ step }: StepNameEditorProps) {
         />
       </div>
       <div className="flex flex-col items-center gap-0.5 shrink-0">
-        <label htmlFor={`step-enabled-${step.id}`} className="text-[9px] text-ds-textDim">有効</label>
+        <label htmlFor={`step-enabled-${step.id}`} className="text-[9px] text-das-textDim">有効</label>
         <button
           id={`step-enabled-${step.id}`}
           type="button"
@@ -764,7 +766,7 @@ export function StepNameEditor({ step }: StepNameEditorProps) {
           }}
           className={[
             'h-5 w-9 rounded-full transition-colors',
-            step.enabled ? 'bg-ds-ok' : 'bg-ds-textDim/40',
+            step.enabled ? 'bg-das-ok' : 'bg-gray-300',
           ].join(' ')}
           role="switch"
           aria-checked={step.enabled}

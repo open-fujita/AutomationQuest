@@ -141,9 +141,14 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
         />
       )}
 
-      <main className="flex min-h-0 flex-1">
+      {/* DAS ワークスペース本体: ライトテーマ領域 */}
+      <main className="flex min-h-0 flex-1 bg-das-panelAlt">
         {/* ---- 左: マイプロジェクト + パレット ---- */}
-        <div className="flex w-[200px] shrink-0 flex-col border-r border-ds-border overflow-hidden">
+        {/* [data-das-light] で ds-* トークンのダーク色を CSS で上書き */}
+        <div
+          className="flex w-[200px] shrink-0 flex-col border-r border-das-border overflow-hidden bg-das-panel text-das-text"
+          data-das-light="true"
+        >
           <div className="shrink-0">
             <MyProjectsPane />
           </div>
@@ -153,20 +158,20 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
         </div>
 
         {/* ---- 中央: ワークフローキャンバス（上）+ レコーダービュー（下）---- */}
-        <div className="flex min-w-0 flex-1 flex-col border-r border-ds-border">
+        <div className="flex min-w-0 flex-1 flex-col border-r border-das-border">
           {/* タブバー: デザイン/デバッグ + ロボットファイルタブ */}
-          <div className="flex shrink-0 items-center gap-1 border-b border-ds-border bg-ds-panelAlt px-2 py-1 text-[12px]">
-            <span className="rounded bg-green-500/20 px-2 py-0.5 text-[11px] text-green-300">
+          <div className="flex shrink-0 items-center gap-1 border-b border-das-border bg-das-panelAlt px-2 py-1 text-[12px]">
+            <span className="rounded bg-green-100 px-2 py-0.5 text-[11px] text-green-700 border border-green-200">
               緑ロボット（DAS）
             </span>
-            <span className="mx-1 text-ds-border2">|</span>
-            <span className="flex items-center gap-1 rounded-t border border-b-0 border-ds-border bg-ds-bg px-2 py-0.5 text-ds-text">
+            <span className="mx-1 text-das-border2">|</span>
+            <span className="flex items-center gap-1 rounded-t border border-b-0 border-das-border bg-das-bg px-2 py-0.5 text-das-text">
               🤖 {robot.name}.robot
             </span>
           </div>
 
           {/* ワークフローキャンバス（上: flex-1, min-h-0） */}
-          <div className="min-h-0 flex-1 border-b border-ds-border overflow-hidden">
+          <div className="min-h-0 flex-1 border-b border-das-border overflow-hidden">
             <DasWorkflowView />
           </div>
 
@@ -180,12 +185,12 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
         </div>
 
         {/* ---- 右: 状態（変数）パネル + tick スライダー ---- */}
-        <div className="flex w-[280px] shrink-0 flex-col overflow-hidden">
+        <div className="flex w-[280px] shrink-0 flex-col overflow-hidden bg-das-panel">
           {/* tick スライダー（mockApp がある場合のみ表示） */}
           {mission.mockApp && mission.mockApp.timeline.length > 0 && (
-            <div className="shrink-0 border-b border-ds-border bg-ds-panelAlt px-3 py-2">
+            <div className="shrink-0 border-b border-das-border bg-das-panelAlt px-3 py-2">
               <div className="flex items-center gap-2 text-[11px]">
-                <label htmlFor="tick-slider-das" className="shrink-0 text-ds-textDim">
+                <label htmlFor="tick-slider-das" className="shrink-0 text-das-textDim">
                   tick:
                 </label>
                 <input
@@ -195,10 +200,10 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
                   max={120}
                   value={currentTick}
                   onChange={(e) => setCurrentTick(Number(e.target.value))}
-                  className="flex-1 accent-ds-accent2"
+                  className="flex-1 accent-das-accent2"
                   aria-label="模擬アプリの時間軸（tick）"
                 />
-                <span className="w-8 shrink-0 text-right font-mono text-ds-text">{currentTick}</span>
+                <span className="w-8 shrink-0 text-right font-mono text-das-text">{currentTick}</span>
               </div>
             </div>
           )}

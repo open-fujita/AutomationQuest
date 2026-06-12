@@ -140,7 +140,7 @@ export const GuardLane = React.memo(function GuardLane({
       <div
         className={[
           'shrink-0 rounded border bg-white p-1.5 text-[11px] min-w-[130px] max-w-[200px]',
-          isWinner ? 'border-green-500/60' : 'border-ds-border/60',
+          isWinner ? 'border-green-500/60' : 'border-das-border',
         ].join(' ')}
       >
         {/* ガード種別ドロップダウン + 削除ボタン */}
@@ -152,7 +152,7 @@ export const GuardLane = React.memo(function GuardLane({
               'flex-1 rounded border px-1 py-0.5 text-[11px] focus:outline-none bg-white',
               isWinner
                 ? 'border-green-500/60 text-green-700 focus:border-green-500'
-                : 'border-ds-border text-ds-text focus:border-green-500',
+                : 'border-das-border text-das-text focus:border-green-600',
             ].join(' ')}
             aria-label={`ガード ${guardIndex + 1} の種別`}
           >
@@ -169,7 +169,7 @@ export const GuardLane = React.memo(function GuardLane({
           <button
             type="button"
             onClick={() => removeGuard(parentStepId, guardIndex)}
-            className="shrink-0 rounded px-0.5 py-0.5 text-[10px] text-ds-textDim/60 hover:text-ds-err leading-none"
+            className="shrink-0 rounded px-0.5 py-0.5 text-[10px] text-das-textDim hover:text-das-err leading-none"
             aria-label={`ガード ${guardIndex + 1} を削除`}
             title="ガードを削除"
           >
@@ -182,7 +182,7 @@ export const GuardLane = React.memo(function GuardLane({
           <div>
             <label
               htmlFor={`guard-sec-${parentStepId}-${guardIndex}`}
-              className="block text-[10px] text-ds-textDim mb-0.5"
+              className="block text-[10px] text-das-textDim mb-0.5"
             >
               秒
             </label>
@@ -195,10 +195,10 @@ export const GuardLane = React.memo(function GuardLane({
                 value={secondsInput}
                 onChange={handleSecondsChange}
                 className={[
-                  'w-20 rounded border px-1.5 py-0.5 text-[11px] bg-ds-bg text-ds-text focus:outline-none',
+                  'w-20 rounded border px-1.5 py-0.5 text-[11px] bg-white text-das-text focus:outline-none',
                   secondsInvalid
                     ? 'border-red-500 focus:border-red-500'
-                    : 'border-ds-border focus:border-green-500',
+                    : 'border-das-border focus:border-green-600',
                 ].join(' ')}
                 aria-label="タイムアウト秒数"
                 aria-invalid={secondsInvalid}
@@ -219,8 +219,8 @@ export const GuardLane = React.memo(function GuardLane({
         {/* treeStoppedChanging: ミリ秒表示 */}
         {guard.type === 'treeStoppedChanging' && (
           <div>
-            <label className="block text-[10px] text-ds-textDim mb-0.5">ミリ秒</label>
-            <span className="text-[11px] text-ds-text font-mono">{guard.ms ?? 500}</span>
+            <label className="block text-[10px] text-das-textDim mb-0.5">ミリ秒</label>
+            <span className="text-[11px] text-das-text font-mono">{guard.ms ?? 500}</span>
           </div>
         )}
 
@@ -248,7 +248,7 @@ export const GuardLane = React.memo(function GuardLane({
       <div className="flex items-start gap-0">
         {renderBranchSteps(guard.steps)}
         {guard.steps.length === 0 && (
-          <div className="flex items-center text-[10px] text-ds-textDim/60 italic px-2 py-1 shrink-0 self-center">
+          <div className="flex items-center text-[10px] text-das-textDim/60 italic px-2 py-1 shrink-0 self-center">
             （ステップなし）
           </div>
         )}

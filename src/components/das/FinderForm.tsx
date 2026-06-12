@@ -55,9 +55,10 @@ export const FinderForm = React.memo(function FinderForm({
   // ヘッダの折りたたみ状態（展開固定のユースケースが多いのでデフォルト展開）
   const [collapsed, setCollapsed] = useState(false)
 
+  // ライトテーマ: 白地・薄グレー枠・濃グレーラベル（コントラスト比確保）
   const inputCls =
-    'w-full rounded border border-ds-border bg-ds-bg px-1.5 py-0.5 text-[11px] text-ds-text focus:border-green-500 focus:outline-none'
-  const labelCls = 'block text-[10px] text-ds-textDim mb-0.5'
+    'w-full rounded border border-das-border bg-white px-1.5 py-0.5 text-[11px] text-das-text focus:border-green-600 focus:outline-none'
+  const labelCls = 'block text-[10px] text-das-textDim mb-0.5 font-medium'
 
   // コンポーネント(セレクタ)が空のときエラー表示
   const selectorEmpty = !finder.selector || finder.selector.trim() === ''
@@ -71,24 +72,24 @@ export const FinderForm = React.memo(function FinderForm({
       className={[
         'rounded border bg-white p-2 text-[11px]',
         // フォーカス中 / アクティブ: 緑枠（実機準拠）
-        'border-ds-border focus-within:border-green-500',
+        'border-das-border focus-within:border-green-600',
       ].join(' ')}
     >
       {/* ヘッダ: 「コンポーネント ^ ?」 */}
       {showHeader && (
         <div className="flex items-center gap-1 mb-1.5">
-          <span className="flex-1 text-[11px] font-medium text-ds-text">{headerLabel}</span>
+          <span className="flex-1 text-[11px] font-medium text-das-text">{headerLabel}</span>
           <button
             type="button"
             onClick={() => setCollapsed((v) => !v)}
-            className="text-[10px] text-ds-textDim hover:text-ds-text px-0.5"
+            className="text-[10px] text-das-textDim hover:text-das-text px-0.5"
             aria-label={collapsed ? `${headerLabel}の設定を展開` : `${headerLabel}の設定を折りたたむ`}
           >
             ^
           </button>
           <button
             type="button"
-            className="text-[10px] text-ds-textDim hover:text-ds-text px-0.5"
+            className="text-[10px] text-das-textDim hover:text-das-text px-0.5"
             aria-label="ヘルプ"
           >
             ?
@@ -124,7 +125,7 @@ export const FinderForm = React.memo(function FinderForm({
               id={`${idPrefix}-base`}
               value={finder.baseFinder ?? ''}
               onChange={(e) => onChange({ ...finder, baseFinder: e.target.value })}
-              className="w-full rounded border border-ds-border bg-white px-1.5 py-0.5 text-[11px] text-ds-text focus:border-green-500 focus:outline-none"
+              className="w-full rounded border border-das-border bg-white px-1.5 py-0.5 text-[11px] text-das-text focus:border-green-600 focus:outline-none"
               aria-label="ベース ファインダー"
             >
               {BASE_FINDER_OPTIONS.map((opt) => (
@@ -147,7 +148,7 @@ export const FinderForm = React.memo(function FinderForm({
                   id={`${idPrefix}-device`}
                   value={finder.device ?? 'local'}
                   onChange={(e) => onChange({ ...finder, device: e.target.value })}
-                  className="w-full rounded border border-ds-border bg-white px-1.5 py-0.5 text-[11px] text-ds-text focus:border-green-500 focus:outline-none"
+                  className="w-full rounded border border-das-border bg-white px-1.5 py-0.5 text-[11px] text-das-text focus:border-green-600 focus:outline-none"
                   aria-label="デバイス"
                 >
                   {DEVICE_OPTIONS.map((opt) => (
@@ -191,7 +192,7 @@ export const FinderForm = React.memo(function FinderForm({
                     'flex-1 rounded border px-1.5 py-0.5 text-[11px] focus:outline-none bg-white',
                     showSelectorError
                       ? 'border-red-500 focus:border-red-500'
-                      : 'border-ds-border focus:border-green-500',
+                      : 'border-das-border focus:border-green-600',
                   ].join(' ')}
                   aria-label="コンポーネント（直前の）"
                 >
@@ -223,10 +224,10 @@ export const FinderForm = React.memo(function FinderForm({
                   value={finder.selector}
                   onChange={(e) => onChange({ ...finder, selector: e.target.value })}
                   className={[
-                    'flex-1 rounded border px-1.5 py-0.5 text-[11px] font-mono focus:outline-none bg-ds-bg text-ds-accent2',
+                    'flex-1 rounded border px-1.5 py-0.5 text-[11px] font-mono focus:outline-none bg-white text-das-accent2',
                     showSelectorError
                       ? 'border-red-500 focus:border-red-500'
-                      : 'border-ds-border focus:border-green-500',
+                      : 'border-das-border focus:border-green-600',
                   ].join(' ')}
                   placeholder='button[name="OK"]'
                   spellCheck={false}
@@ -253,10 +254,10 @@ export const FinderForm = React.memo(function FinderForm({
               type="checkbox"
               checked={finder.innerComponent ?? false}
               onChange={(e) => onChange({ ...finder, innerComponent: e.target.checked })}
-              className="accent-ds-accent2"
+              className="accent-das-accent2"
               aria-label="内部コンポーネントを対象にする"
             />
-            <label htmlFor={`${idPrefix}-innercomponent`} className="text-[10px] text-ds-textDim cursor-pointer">
+            <label htmlFor={`${idPrefix}-innercomponent`} className="text-[10px] text-das-textDim cursor-pointer">
               内部コンポーネント
             </label>
           </div>
@@ -268,10 +269,10 @@ export const FinderForm = React.memo(function FinderForm({
               type="checkbox"
               checked={finder.textMatch ?? false}
               onChange={(e) => onChange({ ...finder, textMatch: e.target.checked })}
-              className="accent-ds-accent2"
+              className="accent-das-accent2"
               aria-label="テキスト一致 (Regex) を使用する"
             />
-            <label htmlFor={`${idPrefix}-textmatch`} className="text-[10px] text-ds-textDim cursor-pointer">
+            <label htmlFor={`${idPrefix}-textmatch`} className="text-[10px] text-das-textDim cursor-pointer">
               テキスト一致 (Regex)
             </label>
             {finder.textMatch && (
@@ -279,7 +280,7 @@ export const FinderForm = React.memo(function FinderForm({
                 type="text"
                 value={finder.textMatchRegex ?? ''}
                 onChange={(e) => onChange({ ...finder, textMatchRegex: e.target.value })}
-                className="flex-1 rounded border border-ds-border bg-ds-bg px-1 py-0.5 font-mono text-[10px] text-ds-accent2 focus:border-green-500 focus:outline-none"
+                className="flex-1 rounded border border-das-border bg-white px-1 py-0.5 font-mono text-[10px] text-das-accent2 focus:border-green-600 focus:outline-none"
                 placeholder="正規表現"
                 aria-label="テキスト一致の正規表現"
               />

@@ -61,7 +61,7 @@ const WidgetComponent = React.memo(function WidgetComponent({
       : isLoopScope
         ? 'outline outline-2 outline-blue-500'
         : isSelected
-          ? 'ring-2 ring-ds-accent2'
+          ? 'ring-2 ring-blue-500'
           : '',
   ].join(' ')
 

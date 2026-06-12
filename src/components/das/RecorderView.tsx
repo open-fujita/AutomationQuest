@@ -67,8 +67,8 @@ function WidgetTreeItem({ widget, depth, selectedWidgetId, onSelect, onRightClic
       <div
         className={[
           'flex cursor-pointer select-none items-center gap-1 rounded px-1 py-0.5 text-[11px]',
-          'focus:outline-none focus:ring-1 focus:ring-ds-accent2',
-          isSelected ? 'bg-ds-accent2/20 text-ds-text' : 'text-ds-textDim hover:bg-ds-panelAlt hover:text-ds-text',
+          'focus:outline-none focus:ring-1 focus:ring-das-accent2',
+          isSelected ? 'bg-das-accent2/20 text-das-text' : 'text-das-textDim hover:bg-das-panelAlt hover:text-das-text',
         ].join(' ')}
         style={{ paddingLeft: `${depth * 12 + 4}px` }}
         tabIndex={0}
@@ -82,7 +82,7 @@ function WidgetTreeItem({ widget, depth, selectedWidgetId, onSelect, onRightClic
       >
         {hasChildren ? (
           <button
-            className="shrink-0 text-[9px] text-ds-textDim"
+            className="shrink-0 text-[9px] text-das-textDim"
             tabIndex={-1}
             onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v) }}
             aria-label={expanded ? '折りたたむ' : '展開する'}
@@ -94,23 +94,23 @@ function WidgetTreeItem({ widget, depth, selectedWidgetId, onSelect, onRightClic
         )}
 
         {/* ウィジェット種別バッジ */}
-        <span className="rounded bg-ds-panelAlt px-1 text-[10px] text-ds-accent2">{widget.type}</span>
+        <span className="rounded bg-das-panelAlt px-1 text-[10px] text-das-accent2">{widget.type}</span>
 
         {/* 属性表示 */}
         {widget.attrs['name'] && (
-          <span className="truncate text-ds-text">{widget.attrs['name']}</span>
+          <span className="truncate text-das-text">{widget.attrs['name']}</span>
         )}
         {!widget.attrs['name'] && widget.text && (
-          <span className="truncate italic text-ds-textDim">"{widget.text}"</span>
+          <span className="truncate italic text-das-textDim">"{widget.text}"</span>
         )}
 
         {/* 可視/非可視 */}
         {!widget.visible && (
-          <span className="ml-auto shrink-0 text-[9px] text-ds-textDim">(非表示)</span>
+          <span className="ml-auto shrink-0 text-[9px] text-das-textDim">(非表示)</span>
         )}
 
         {/* セレクタプレビュー */}
-        <span className="ml-auto shrink-0 max-w-[120px] truncate font-mono text-[9px] text-ds-textDim/60" title={selector}>
+        <span className="ml-auto shrink-0 max-w-[120px] truncate font-mono text-[9px] text-das-textDim/60" title={selector}>
           {selector}
         </span>
       </div>
@@ -210,7 +210,7 @@ function ContextMenu({
       ref={menuRef}
       role="menu"
       aria-label="ステップ挿入メニュー"
-      className="fixed z-50 rounded-md border border-ds-border2 bg-ds-panel py-1 shadow-xl"
+      className="fixed z-50 rounded-md border border-das-border2 bg-white shadow-lg py-1 shadow-xl"
       style={{
         top: adjustedPos?.y ?? position.y,
         left: adjustedPos?.x ?? position.x,
@@ -222,9 +222,9 @@ function ContextMenu({
       }}
     >
       {/* 対象ウィジェット情報 */}
-      <div className="border-b border-ds-border/50 px-3 py-1.5">
-        <div className="text-[10px] text-ds-textDim">対象: {widget.type}</div>
-        <div className="truncate font-mono text-[10px] text-ds-accent2">{generateSelector(widget)}</div>
+      <div className="border-b border-das-border px-3 py-1.5">
+        <div className="text-[10px] text-das-textDim">対象: {widget.type}</div>
+        <div className="truncate font-mono text-[10px] text-das-accent2">{generateSelector(widget)}</div>
       </div>
 
       {/* ステップ挿入メニュー */}
@@ -233,7 +233,7 @@ function ContextMenu({
           <button
             key={item.label}
             role="menuitem"
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-ds-text hover:bg-ds-panelAlt"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-das-text hover:bg-das-panelAlt"
             onClick={item.action}
             title={item.hint}
           >
@@ -244,13 +244,13 @@ function ContextMenu({
       </div>
 
       {/* ガード挿入サブセクション */}
-      <div className="border-t border-ds-border/50 py-0.5">
-        <div className="px-3 py-1 text-[10px] text-ds-textDim">ガードチョイスのガードに使用</div>
+      <div className="border-t border-das-border py-0.5">
+        <div className="px-3 py-1 text-[10px] text-das-textDim">ガードチョイスのガードに使用</div>
         {GUARD_QUICK_TYPES.map((g) => (
           <button
             key={g.type}
             role="menuitem"
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-ds-text hover:bg-ds-panelAlt"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-das-text hover:bg-das-panelAlt"
             onClick={() => { onInsertGuard(g.type); onClose() }}
           >
             <span className="w-5 shrink-0 text-center">⚡</span>
@@ -423,8 +423,8 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
 
   if (!app) {
     return (
-      <PanelFrame title="レコーダービュー" hint="模擬デスクトップアプリ">
-        <div className="flex h-full items-center justify-center text-[13px] text-ds-textDim">
+      <PanelFrame title="レコーダービュー" hint="模擬デスクトップアプリ" className="!bg-das-panel [&>header]:!bg-das-panelAlt [&>header]:!border-das-border [&>header_h2]:!text-das-text [&>header_span]:!text-das-textDim">
+        <div className="flex h-full items-center justify-center text-[13px] text-das-textDim">
           <div className="text-center">
             <div className="mb-2 text-[32px]">🖥</div>
             <p>このミッションにはアプリが設定されていません</p>
@@ -439,10 +439,11 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
       title="レコーダービュー"
       hint="要素を右クリックしてステップを挿入"
       scroll={false}
+      className="!bg-das-panel [&>header]:!bg-das-panelAlt [&>header]:!border-das-border [&>header_h2]:!text-das-text [&>header_span]:!text-das-textDim"
     >
       <div className="flex h-full flex-col">
         {/* タブ切り替え */}
-        <div className="flex shrink-0 border-b border-ds-border bg-ds-panelAlt px-2 pt-1">
+        <div className="flex shrink-0 border-b border-das-border bg-das-panelAlt px-2 pt-1">
           {(['app', 'tree'] as const).map((tab) => (
             <button
               key={tab}
@@ -452,8 +453,8 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
               className={[
                 'rounded-t px-3 py-1 text-[12px] transition-colors',
                 activeTab === tab
-                  ? 'bg-ds-bg text-ds-text'
-                  : 'text-ds-textDim hover:text-ds-text',
+                  ? 'bg-das-bg text-das-text'
+                  : 'text-das-textDim hover:text-das-text',
               ].join(' ')}
             >
               {tab === 'app' ? '🖥 アプリ画面' : '🌳 要素ツリー'}
@@ -475,7 +476,7 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
           )}
 
           {activeTab === 'tree' && (
-            <div className="rounded border border-ds-border bg-ds-bg p-2">
+            <div className="rounded border border-das-border bg-das-bg p-2">
               <ul
                 role="tree"
                 aria-label="要素ツリー"
@@ -497,10 +498,10 @@ export default function RecorderView({ app, currentTick }: RecorderViewProps) {
         </div>
 
         {/* ステータスバー（マウス座標・デバイス状態演出） */}
-        <div className="flex shrink-0 items-center gap-4 border-t border-ds-border bg-ds-panelAlt px-3 py-0.5 text-[10px] text-ds-textDim">
+        <div className="flex shrink-0 items-center gap-4 border-t border-das-border bg-das-panelAlt px-3 py-0.5 text-[10px] text-das-textDim">
           <span>x: {mousePos.x}, y: {mousePos.y}</span>
           {selectedWidget && (
-            <span className="truncate font-mono text-ds-accent2">
+            <span className="truncate font-mono text-das-accent2">
               選択: {generateSelector(selectedWidget)}
             </span>
           )}

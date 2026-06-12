@@ -16,10 +16,10 @@ import PanelFrame from '../ds/PanelFrame'
 // ---- ログエントリのスタイル定義 --------------------------------
 
 const STATUS_STYLE: Record<DasSimLogEntry['status'], { mark: string; cls: string }> = {
-  ok: { mark: '✓', cls: 'text-ds-ok' },
-  skip: { mark: '–', cls: 'text-ds-textDim' },
-  error: { mark: '✕', cls: 'text-ds-err' },
-  'guard-waiting': { mark: '⏳', cls: 'text-ds-warn' },
+  ok: { mark: '✓', cls: 'text-das-ok' },
+  skip: { mark: '–', cls: 'text-das-textDim' },
+  error: { mark: '✕', cls: 'text-das-err' },
+  'guard-waiting': { mark: '⏳', cls: 'text-das-warn' },
   'guard-matched': { mark: '✓', cls: 'text-green-400' },
 }
 
@@ -28,7 +28,7 @@ export default function DasStatePane() {
   const sim = useDasRobotStore((s) => s.sim)
 
   return (
-    <PanelFrame title="状態" hint="変数・実行ログ">
+    <PanelFrame title="状態" hint="変数・実行ログ" className="!bg-das-panel [&>header]:!bg-das-panelAlt [&>header]:!border-das-border [&>header_h2]:!text-das-text [&>header_span]:!text-das-textDim">
       <div
         role="complementary"
         aria-label="状態パネル"
@@ -36,31 +36,31 @@ export default function DasStatePane() {
       >
         {/* ---- 変数一覧 ---- */}
         <div>
-          <div className="text-[10px] font-semibold text-ds-textDim mb-1 uppercase tracking-wide">変数</div>
+          <div className="text-[10px] font-semibold text-das-textDim mb-1 uppercase tracking-wide">変数</div>
           {robot.variables.length === 0 && !sim.ran && (
-            <div className="text-[10px] text-ds-textDim/60 italic">（変数なし）</div>
+            <div className="text-[10px] text-das-textDim/60 italic">（変数なし）</div>
           )}
           {robot.variables.map((v) => {
             const records = sim.data[v.name]
             return (
               <div
                 key={v.name}
-                className="mb-1 rounded border border-ds-border/40 bg-ds-bg px-2 py-1"
+                className="mb-1 rounded border border-das-border bg-das-bg px-2 py-1"
               >
                 <div className="flex items-center gap-1">
-                  <span className="font-mono text-ds-accent">{v.name}</span>
-                  <span className="text-[10px] text-ds-textDim">: {String(v.typeName)}</span>
+                  <span className="font-mono text-das-accent">{v.name}</span>
+                  <span className="text-[10px] text-das-textDim">: {String(v.typeName)}</span>
                   {records && records.length > 0 && (
                     <span className="ml-auto text-[10px] text-green-400">{records.length}件</span>
                   )}
                 </div>
                 {records && records.slice(0, 3).map((rec, i) => (
-                  <div key={i} className="text-[10px] font-mono text-ds-textDim truncate">
+                  <div key={i} className="text-[10px] font-mono text-das-textDim truncate">
                     [{i}] {JSON.stringify(rec)}
                   </div>
                 ))}
                 {records && records.length > 3 && (
-                  <div className="text-[10px] text-ds-textDim">…他 {records.length - 3} 件</div>
+                  <div className="text-[10px] text-das-textDim">…他 {records.length - 3} 件</div>
                 )}
               </div>
             )
@@ -75,16 +75,16 @@ export default function DasStatePane() {
                 className="mb-1 rounded border border-green-500/30 bg-green-400/5 px-2 py-1"
               >
                 <div className="flex items-center gap-1">
-                  <span className="font-mono text-ds-accent">{name}</span>
+                  <span className="font-mono text-das-accent">{name}</span>
                   <span className="ml-auto text-[10px] text-green-400">{records.length}件</span>
                 </div>
                 {records.slice(0, 3).map((rec, i) => (
-                  <div key={i} className="text-[10px] font-mono text-ds-textDim truncate">
+                  <div key={i} className="text-[10px] font-mono text-das-textDim truncate">
                     [{i}] {JSON.stringify(rec)}
                   </div>
                 ))}
                 {records.length > 3 && (
-                  <div className="text-[10px] text-ds-textDim">…他 {records.length - 3} 件</div>
+                  <div className="text-[10px] text-das-textDim">…他 {records.length - 3} 件</div>
                 )}
               </div>
             ))
@@ -94,12 +94,12 @@ export default function DasStatePane() {
         {/* ---- ガードチョイス結果 ---- */}
         {sim.ran && sim.guardResults.length > 0 && (
           <div>
-            <div className="text-[10px] font-semibold text-ds-textDim mb-1 uppercase tracking-wide">ガード チョイス結果</div>
+            <div className="text-[10px] font-semibold text-das-textDim mb-1 uppercase tracking-wide">ガード チョイス結果</div>
             {sim.guardResults.map((gr, i) => (
               <div key={i} className="flex items-center gap-1.5 text-[10px] rounded bg-green-400/5 px-2 py-0.5 mb-0.5">
                 <span className="text-green-400">✓</span>
                 <span className="font-mono text-green-300">{gr.winnerGuardType}</span>
-                <span className="text-ds-textDim">成立 (tick={gr.tick})</span>
+                <span className="text-das-textDim">成立 (tick={gr.tick})</span>
               </div>
             ))}
           </div>
@@ -107,7 +107,7 @@ export default function DasStatePane() {
 
         {/* ---- 実行ログ ---- */}
         <div>
-          <div className="text-[10px] font-semibold text-ds-textDim mb-1 uppercase tracking-wide">実行ログ</div>
+          <div className="text-[10px] font-semibold text-das-textDim mb-1 uppercase tracking-wide">実行ログ</div>
           <div
             role="log"
             aria-live="polite"
@@ -115,12 +115,12 @@ export default function DasStatePane() {
             className="font-mono text-[10px] leading-relaxed max-h-48 overflow-y-auto"
           >
             {!sim.ran && (
-              <div className="text-ds-textDim/60">
+              <div className="text-das-textDim/60">
                 ［実行］を押すとログが表示されます
               </div>
             )}
             {sim.ran && sim.log.length === 0 && (
-              <div className="text-ds-textDim">実行されたステップがありません</div>
+              <div className="text-das-textDim">実行されたステップがありません</div>
             )}
             {sim.log.map((entry, i) => {
               const st = STATUS_STYLE[entry.status]
@@ -130,14 +130,14 @@ export default function DasStatePane() {
                   key={i}
                   className={[
                     'flex gap-1',
-                    isGuardEntry ? 'rounded bg-ds-panelAlt/50 px-0.5' : '',
+                    isGuardEntry ? 'rounded bg-das-panelAlt px-0.5' : '',
                     entry.status === 'guard-matched' ? 'bg-green-400/5' : '',
                   ].join(' ')}
                 >
                   <span className={`shrink-0 ${st.cls}`}>{st.mark}</span>
-                  <span className="flex-1 break-all text-ds-textDim">{entry.stepName}</span>
+                  <span className="flex-1 break-all text-das-textDim">{entry.stepName}</span>
                   {entry.tick !== undefined && (
-                    <span className="shrink-0 text-[9px] text-ds-textDim/50">t={entry.tick}</span>
+                    <span className="shrink-0 text-[9px] text-das-textDim/50">t={entry.tick}</span>
                   )}
                 </div>
               )
@@ -146,15 +146,15 @@ export default function DasStatePane() {
 
           {/* 実行結果サマリ */}
           {sim.ran && sim.errors.length > 0 && (
-            <div className="mt-1 rounded border border-ds-err/40 bg-ds-err/10 p-1.5">
-              <div className="font-semibold text-ds-err text-[10px]">エラー {sim.errors.length} 件</div>
+            <div className="mt-1 rounded border border-red-300 bg-red-50 p-1.5">
+              <div className="font-semibold text-das-err text-[10px]">エラー {sim.errors.length} 件</div>
               {sim.errors.map((er, i) => (
-                <div key={i} className="text-[10px] text-ds-err">・{er}</div>
+                <div key={i} className="text-[10px] text-das-err">・{er}</div>
               ))}
             </div>
           )}
           {sim.ran && sim.errors.length === 0 && (
-            <div className="mt-1 rounded border border-ds-ok/40 bg-ds-ok/10 p-1 text-[10px] text-ds-ok">
+            <div className="mt-1 rounded border border-green-300 bg-green-50 p-1 text-[10px] text-das-ok">
               ✓ 正常終了（{sim.totalTick} tick）
             </div>
           )}

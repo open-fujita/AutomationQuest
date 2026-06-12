@@ -133,10 +133,10 @@ export const StepCard = React.memo(function StepCard({
     [onSelect, step.id],
   )
 
-  // ステータスの色
+  // ステータスの色（ライトテーマ上での緑枠はそのまま維持）
   const statusBorderColor =
     isCurrent
-      ? 'ring-2 ring-green-400 bg-green-400/5'
+      ? 'ring-2 ring-green-500 bg-green-50'
       : isSelected
         ? 'ring-2 ring-green-500'
         : 'ring-0'
@@ -176,11 +176,11 @@ export const StepCard = React.memo(function StepCard({
       aria-label={`ステップ: ${displayName}`}
       className={['flex items-start shrink-0', isLoopStep ? '' : 'relative'].join(' ')}
     >
-      {/* カード本体 */}
+      {/* カード本体: ライトテーマ（白地・薄グレー枠・濃グレー文字） */}
       <div
         className={[
-          'relative rounded border bg-ds-bg text-ds-text cursor-pointer select-none shrink-0',
-          'border-ds-border',
+          'relative rounded border bg-das-bg text-das-text cursor-pointer select-none shrink-0',
+          'border-das-border shadow-sm',
           statusBorderColor,
           !step.enabled ? 'opacity-50' : '',
           // GuardedChoice はレーンが横に伸びるため幅制限を外す
@@ -193,7 +193,7 @@ export const StepCard = React.memo(function StepCard({
         {/* ⚠ バッジ（設定不備時） */}
         {issue && (
           <span
-            className="absolute -top-1.5 -right-1.5 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-ds-warn text-[10px] text-white"
+            className="absolute -top-1.5 -right-1.5 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-das-warn text-[10px] text-white"
             title={issue}
             aria-label={`警告: ${issue}`}
           >
@@ -207,12 +207,12 @@ export const StepCard = React.memo(function StepCard({
             className={[
               'absolute -top-1.5 -left-1.5 z-20 flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold',
               status === 'ok' || status === 'guard-matched'
-                ? 'bg-ds-ok text-white'
+                ? 'bg-das-ok text-white'
                 : status === 'error'
-                  ? 'bg-ds-err text-white'
+                  ? 'bg-das-err text-white'
                   : status === 'guard-waiting'
-                    ? 'bg-ds-warn text-white'
-                    : 'bg-ds-textDim text-white',
+                    ? 'bg-das-warn text-white'
+                    : 'bg-das-textDim text-white',
             ].join(' ')}
             aria-hidden="true"
           >
@@ -224,13 +224,13 @@ export const StepCard = React.memo(function StepCard({
         {!expanded && (
           <div className="flex items-center gap-1.5 px-2 py-1.5 text-[12px]">
             <span className="text-[13px] shrink-0">{icon}</span>
-            <span className={['flex-1 truncate text-[11px]', !step.enabled ? 'line-through' : ''].join(' ')}>
+            <span className={['flex-1 truncate text-[11px] text-das-text', !step.enabled ? 'line-through' : ''].join(' ')}>
               {displayName}
             </span>
             <button
               type="button"
               onClick={toggleExpanded}
-              className="shrink-0 text-[11px] text-ds-textDim hover:text-ds-text px-0.5"
+              className="shrink-0 text-[11px] text-das-textDim hover:text-das-text px-0.5"
               aria-label={`${displayName} を展開`}
               title="展開"
             >
@@ -243,13 +243,13 @@ export const StepCard = React.memo(function StepCard({
         {expanded && (
           <>
             {/* 展開時ヘッダ: ↻ アイコン + ラベル + ^ + ? */}
-            <div className="flex items-center gap-1.5 border-b border-ds-border px-2 py-1.5 text-[12px]">
+            <div className="flex items-center gap-1.5 border-b border-das-border px-2 py-1.5 text-[12px] bg-das-panelAlt">
               <span className="text-[13px] shrink-0">{icon}</span>
-              <span className="flex-1 text-[11px] font-medium truncate">{label}</span>
+              <span className="flex-1 text-[11px] font-medium truncate text-das-text">{label}</span>
               <button
                 type="button"
                 onClick={toggleExpanded}
-                className="shrink-0 text-[11px] text-ds-textDim hover:text-ds-text px-0.5"
+                className="shrink-0 text-[11px] text-das-textDim hover:text-das-text px-0.5"
                 aria-label={`${displayName} を折りたたむ`}
                 title="折りたたむ"
               >
@@ -257,7 +257,7 @@ export const StepCard = React.memo(function StepCard({
               </button>
               <button
                 type="button"
-                className="shrink-0 text-[11px] text-ds-textDim hover:text-ds-text px-0.5"
+                className="shrink-0 text-[11px] text-das-textDim hover:text-das-text px-0.5"
                 aria-label="ヘルプ"
                 title="ヘルプ"
               >
@@ -281,39 +281,39 @@ export const StepCard = React.memo(function StepCard({
               {action.type === 'Throw' && <ThrowForm step={step} action={action} />}
               {action.type === 'Return' && <ReturnForm />}
               {action.type === 'Loop' && (
-                <div className="text-[10px] text-ds-textDim italic">
+                <div className="text-[10px] text-das-textDim italic">
                   🔁 ループ（Body ステップは右の横フローに表示）
                 </div>
               )}
               {action.type === 'Break' && (
-                <div className="text-[10px] text-ds-textDim italic">⛔ ループを終了します</div>
+                <div className="text-[10px] text-das-textDim italic">⛔ ループを終了します</div>
               )}
               {action.type === 'Continue' && (
-                <div className="text-[10px] text-ds-textDim italic">⏭ 次の反復へスキップします</div>
+                <div className="text-[10px] text-das-textDim italic">⏭ 次の反復へスキップします</div>
               )}
               {action.type === 'Condition' && (
-                <div className="text-[10px] text-ds-textDim italic">◇ 条件分岐（未実装ステップ）</div>
+                <div className="text-[10px] text-das-textDim italic">◇ 条件分岐（未実装ステップ）</div>
               )}
               {action.type === 'Group' && (
-                <div className="text-[10px] text-ds-textDim italic">📦 グループ（未実装ステップ）</div>
+                <div className="text-[10px] text-das-textDim italic">📦 グループ（未実装ステップ）</div>
               )}
               {(action.type === 'Assign' ||
                 action.type === 'TryCatch') && (
-                <div className="text-[10px] text-ds-textDim italic">
+                <div className="text-[10px] text-das-textDim italic">
                   この研修ラボでは未対応のステップです
                 </div>
               )}
 
               {/* ステップ削除（onRemove が渡されたときのみ） */}
               {onRemove && (
-                <div className="mt-3 border-t border-ds-border/40 pt-2">
+                <div className="mt-3 border-t border-das-border pt-2">
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation()
                       onRemove(step.id)
                     }}
-                    className="w-full rounded border border-ds-err/40 px-2 py-1 text-[11px] text-ds-err hover:bg-ds-err/10"
+                    className="w-full rounded border border-das-err/60 px-2 py-1 text-[11px] text-das-err hover:bg-red-50"
                     aria-label="ステップを削除"
                   >
                     ✕ ステップを削除
@@ -324,9 +324,9 @@ export const StepCard = React.memo(function StepCard({
 
             {/* ---- GuardedChoice: ガードレーン縦並び ---- */}
             {action.type === 'GuardedChoice' && (
-              <div className="border-t border-ds-border p-2 space-y-1">
+              <div className="border-t border-das-border p-2 space-y-1">
                 {action.guards.length === 0 && (
-                  <div className="rounded border border-ds-warn/30 bg-ds-warn/5 p-2 text-[11px] text-ds-warn">
+                  <div className="rounded border border-amber-400 bg-amber-50 p-2 text-[11px] text-amber-700">
                     ⚠ ガードが未設定です。⊕ボタンから追加してください。
                   </div>
                 )}
@@ -372,7 +372,7 @@ export const StepCard = React.memo(function StepCard({
           <div className="flex items-start mt-[5px]">
             {renderSteps(loopBody)}
             {loopBody.length === 0 && (
-              <span className="text-[10px] text-ds-textDim/60 italic px-3 mt-2">（body が空）</span>
+              <span className="text-[10px] text-das-textDim italic px-3 mt-2">（body が空）</span>
             )}
           </div>
           {/* body 末尾のフローポイント */}

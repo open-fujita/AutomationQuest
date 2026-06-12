@@ -125,13 +125,13 @@ export default function DasPalette() {
   const addStep = useDasRobotStore((s) => s.addStep)
 
   return (
-    <div className="border-t border-ds-border overflow-y-auto">
-      <div className="border-b border-ds-border bg-ds-panelAlt px-3 py-1.5 text-[12px] font-semibold text-ds-text sticky top-0 z-10">
+    <div className="border-t border-das-border overflow-y-auto">
+      <div className="border-b border-das-border bg-das-panelAlt px-3 py-1.5 text-[12px] font-semibold text-das-text sticky top-0 z-10">
         パレット
-        <span className="ml-1 text-[10px] font-normal text-ds-textDim">（緑ロボット 2026.1）</span>
+        <span className="ml-1 text-[10px] font-normal text-das-textDim">（緑ロボット 2026.1）</span>
       </div>
 
-      <div className="text-[10px] text-ds-textDim px-3 py-1">
+      <div className="text-[10px] text-das-textDim px-3 py-1">
         クリックでステップを末尾に追加
       </div>
 
@@ -140,10 +140,10 @@ export default function DasPalette() {
           <summary
             className={[
               'flex cursor-pointer select-none items-center gap-1.5 px-2 py-1',
-              'bg-ds-panelAlt/60 border-b border-ds-border/40',
-              'text-[11px] font-medium text-ds-text',
-              'hover:bg-ds-panelAlt list-none',
-              'focus:outline-none focus:ring-1 focus:ring-ds-accent2',
+              'bg-das-panelAlt/60 border-b border-das-border/40',
+              'text-[11px] font-medium text-das-text',
+              'hover:bg-das-panelAlt list-none',
+              'focus:outline-none focus:ring-1 focus:ring-das-accent2',
             ].join(' ')}
             role="button"
             aria-label={`${category.name} カテゴリを展開/折りたたむ`}
@@ -152,7 +152,7 @@ export default function DasPalette() {
               {CATEGORY_ICONS[category.name] ?? '▸'}
             </span>
             <span className="flex-1">{category.name}</span>
-            <span className="text-[10px] text-ds-textDim group-open:rotate-90 transition-transform">
+            <span className="text-[10px] text-das-textDim group-open:rotate-90 transition-transform">
               ▶
             </span>
           </summary>
@@ -174,12 +174,12 @@ export default function DasPalette() {
                       }}
                       className={[
                         'flex w-full items-center gap-1.5 px-3 py-1 text-left text-[11px]',
-                        'hover:bg-ds-accent2/10 hover:text-ds-text text-ds-text',
-                        'focus:outline-none focus:ring-1 focus:ring-ds-accent2',
+                        'hover:bg-das-accent2/10 hover:text-das-text text-das-text',
+                        'focus:outline-none focus:ring-1 focus:ring-das-accent2',
                       ].join(' ')}
                       aria-label={`${label} ステップを追加`}
                     >
-                      <span className="shrink-0 w-4 text-center text-ds-accent2">▸</span>
+                      <span className="shrink-0 w-4 text-center text-das-accent2">▸</span>
                       <span className="flex-1 truncate">{label}</span>
                     </button>
                   </li>
@@ -191,7 +191,7 @@ export default function DasPalette() {
                     <div
                       className={[
                         'flex w-full items-center gap-1.5 px-3 py-1 text-[11px]',
-                        'opacity-40 cursor-not-allowed text-ds-textDim',
+                        'opacity-40 cursor-not-allowed text-das-textDim',
                       ].join(' ')}
                       aria-disabled="true"
                       title="この研修ラボでは未対応"

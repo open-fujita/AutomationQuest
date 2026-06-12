@@ -35,6 +35,31 @@ body {
   height: 7px;
 }
 
+/* ---- DAS ライトテーマ: MyProjectsPane の ds-* 色を上書き ---- */
+/* DasWorkspaceLayout の左パネル (data-das-light="true") 内でのみ有効 */
+[data-das-light] {
+  /* テキスト色 */
+  --tw-text-opacity: 1;
+}
+/* Tailwind の bg-ds-panelAlt / text-ds-text 等を実際の上書きは className で対応済み */
+/* MyProjectsPane の border-ds-border/bg-ds-panelAlt 部分を上書き */
+[data-das-light] .border-ds-border,
+[data-das-light] .border-b.border-ds-border {
+  border-color: #d0d4dc !important;
+}
+[data-das-light] .bg-ds-panelAlt {
+  background-color: #f0f2f5 !important;
+}
+[data-das-light] .text-ds-text {
+  color: #1f2937 !important;
+}
+[data-das-light] .text-ds-textDim {
+  color: #4b5563 !important;
+}
+[data-das-light] .bg-ds-accent2\/15 {
+  background-color: rgb(37 99 235 / 0.12) !important;
+}
+
 /* 細いスクロールバー */
 *::-webkit-scrollbar {
   width: 9px;

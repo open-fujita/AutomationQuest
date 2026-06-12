@@ -117,14 +117,14 @@ export default function DasWorkflowView() {
     <div
       role="region"
       aria-label="ワークフロー キャンバス"
-      className="h-full overflow-auto bg-ds-bg p-4"
+      className="h-full overflow-auto bg-das-bg p-4"
     >
       {/* タブ風ヘッダ（デザイン / デバッグ） */}
       <div className="flex items-center gap-0 mb-3 shrink-0">
-        <div className="flex rounded-t border border-ds-border bg-ds-bg px-3 py-1 text-[11px] text-ds-text border-b-bg -mb-px z-10">
+        <div className="flex rounded-t border border-das-border bg-das-bg px-3 py-1 text-[11px] text-das-text border-b-white -mb-px z-10">
           デザイン
         </div>
-        <div className="flex rounded-t border border-ds-border bg-ds-panelAlt px-3 py-1 text-[11px] text-ds-textDim">
+        <div className="flex rounded-t border border-das-border bg-das-panelAlt px-3 py-1 text-[11px] text-das-textDim">
           デバッグ
         </div>
       </div>
@@ -137,12 +137,12 @@ export default function DasWorkflowView() {
         {robot.steps.length === 0 ? (
           <div className="flex items-center gap-2 p-4">
             {/* 空のフロー表示 */}
-            <div className="flex items-center text-[12px] text-ds-textDim">
-              <div className="w-3 h-3 rounded-full border-2 border-blue-500/40 bg-white shrink-0" aria-hidden="true" />
-              <div className="h-0.5 w-8 bg-blue-500/30" aria-hidden="true" />
-              <div className="flex flex-col items-center justify-center rounded border border-dashed border-ds-border/60 px-4 py-3 text-center min-w-[160px]">
+            <div className="flex items-center text-[12px] text-das-textDim">
+              <div className="w-3 h-3 rounded-full border-2 border-blue-500 bg-white shrink-0" aria-hidden="true" />
+              <div className="h-0.5 w-8 bg-blue-500" aria-hidden="true" />
+              <div className="flex flex-col items-center justify-center rounded border border-dashed border-das-border px-4 py-3 text-center min-w-[160px]">
                 <div className="mb-1 text-[20px]">🤖</div>
-                <div className="text-[11px] text-ds-textDim">
+                <div className="text-[11px] text-das-textDim">
                   パレットからステップを追加するか
                   <br />
                   レコーダービューで右クリックして
@@ -150,8 +150,8 @@ export default function DasWorkflowView() {
                   ステップを挿入してください
                 </div>
               </div>
-              <div className="h-0.5 w-8 bg-blue-500/30" aria-hidden="true" />
-              <div className="w-3 h-3 rounded-full border-2 border-blue-500/40 bg-white shrink-0" aria-hidden="true" />
+              <div className="h-0.5 w-8 bg-blue-500" aria-hidden="true" />
+              <div className="w-3 h-3 rounded-full border-2 border-blue-500 bg-white shrink-0" aria-hidden="true" />
             </div>
           </div>
         ) : (
