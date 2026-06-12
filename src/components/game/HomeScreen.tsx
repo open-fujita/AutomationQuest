@@ -118,34 +118,119 @@ export default function HomeScreen() {
             </div>
 
             <div className="mb-2 text-[12px] font-semibold text-ds-textDim">相談ボード</div>
-            <div className="space-y-2">
-              {MISSIONS.map((m, i) => {
-                const cleared = completedSet.has(m.id)
-                const unlocked = isUnlocked(i)
-                return (
-                  <button
-                    key={m.id}
-                    disabled={!unlocked}
-                    onClick={() => startMission(m.id)}
-                    className={[
-                      'flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left',
-                      unlocked ? 'border-ds-border bg-ds-bg/40 hover:border-ds-accent2' : 'cursor-not-allowed border-ds-border/40 opacity-50',
-                    ].join(' ')}
-                  >
-                    <span className="text-[18px]">{cleared ? '✅' : unlocked ? '🗂' : '🔒'}</span>
-                    <span className="flex-1">
-                      <span className="block text-[13px] font-semibold">
-                        相談 #{m.index}「{m.title}」
-                      </span>
-                      <span className="block text-[11px] text-ds-textDim">
-                        {m.client.dept}・{m.client.name} / 手作業 {m.manualMinutes} 分
-                      </span>
-                    </span>
-                    {cleared && <span className="text-[11px] text-ds-ok">解決済み</span>}
-                  </button>
-                )
-              })}
-            </div>
+
+            {/* 青ロボット編（M1〜M5）シリーズ */}
+            {MISSIONS.filter((m) => !m.robotType || m.robotType === 'ds').length > 0 && (
+              <div className="mb-3">
+                <div className="mb-1.5 flex items-center gap-2">
+                  <span className="inline-block rounded bg-ds-accent2/20 px-2 py-0.5 text-[11px] text-ds-accent2">
+                    🤖 青ロボット編（Basic Engine Robot）
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {MISSIONS.filter((m) => !m.robotType || m.robotType === 'ds').map((m) => {
+                    const i = MISSIONS.indexOf(m)
+                    const cleared = completedSet.has(m.id)
+                    const unlocked = isUnlocked(i)
+                    return (
+                      <button
+                        key={m.id}
+                        disabled={!unlocked}
+                        onClick={() => startMission(m.id)}
+                        className={[
+                          'flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left',
+                          unlocked ? 'border-ds-border bg-ds-bg/40 hover:border-ds-accent2' : 'cursor-not-allowed border-ds-border/40 opacity-50',
+                        ].join(' ')}
+                      >
+                        <span className="text-[18px]">{cleared ? '✅' : unlocked ? '🗂' : '🔒'}</span>
+                        <span className="flex-1">
+                          <span className="block text-[13px] font-semibold">
+                            相談 #{m.index}「{m.title}」
+                          </span>
+                          <span className="block text-[11px] text-ds-textDim">
+                            {m.client.dept}・{m.client.name} / 手作業 {m.manualMinutes} 分
+                          </span>
+                        </span>
+                        {cleared && <span className="text-[11px] text-ds-ok">解決済み</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 緑ロボット編（D1〜D5）シリーズ */}
+            {MISSIONS.filter((m) => m.robotType === 'das').length > 0 && (
+              <div>
+                <div className="mb-1.5 flex items-center gap-2">
+                  <span className="inline-block rounded bg-green-500/20 px-2 py-0.5 text-[11px] text-green-300">
+                    🤖 緑ロボット編（Desktop Automation）
+                  </span>
+                </div>
+                <div className="space-y-1.5">
+                  {MISSIONS.filter((m) => m.robotType === 'das').map((m) => {
+                    const i = MISSIONS.indexOf(m)
+                    const cleared = completedSet.has(m.id)
+                    const unlocked = isUnlocked(i)
+                    return (
+                      <button
+                        key={m.id}
+                        disabled={!unlocked}
+                        onClick={() => startMission(m.id)}
+                        className={[
+                          'flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left',
+                          unlocked ? 'border-green-500/30 bg-ds-bg/40 hover:border-green-400/60' : 'cursor-not-allowed border-ds-border/40 opacity-50',
+                        ].join(' ')}
+                      >
+                        <span className="text-[18px]">{cleared ? '✅' : unlocked ? '🗂' : '🔒'}</span>
+                        <span className="flex-1">
+                          <span className="block text-[13px] font-semibold">
+                            相談 #{m.index}「{m.title}」
+                          </span>
+                          <span className="block text-[11px] text-ds-textDim">
+                            {m.client.dept}・{m.client.name} / 手作業 {m.manualMinutes} 分
+                          </span>
+                        </span>
+                        {cleared && <span className="text-[11px] text-ds-ok">解決済み</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 両シリーズが未追加の場合のフォールバック（D1〜D5未定義時） */}
+            {MISSIONS.filter((m) => m.robotType === 'das').length === 0 &&
+              MISSIONS.filter((m) => !m.robotType || m.robotType === 'ds').length === 0 && (
+                <div className="space-y-2">
+                  {MISSIONS.map((m, i) => {
+                    const cleared = completedSet.has(m.id)
+                    const unlocked = isUnlocked(i)
+                    return (
+                      <button
+                        key={m.id}
+                        disabled={!unlocked}
+                        onClick={() => startMission(m.id)}
+                        className={[
+                          'flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left',
+                          unlocked ? 'border-ds-border bg-ds-bg/40 hover:border-ds-accent2' : 'cursor-not-allowed border-ds-border/40 opacity-50',
+                        ].join(' ')}
+                      >
+                        <span className="text-[18px]">{cleared ? '✅' : unlocked ? '🗂' : '🔒'}</span>
+                        <span className="flex-1">
+                          <span className="block text-[13px] font-semibold">
+                            相談 #{m.index}「{m.title}」
+                          </span>
+                          <span className="block text-[11px] text-ds-textDim">
+                            {m.client.dept}・{m.client.name} / 手作業 {m.manualMinutes} 分
+                          </span>
+                        </span>
+                        {cleared && <span className="text-[11px] text-ds-ok">解決済み</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
           </div>
         )}
       </div>

@@ -22,6 +22,9 @@ import Glossary from '../components/game/Glossary'
 import ProgressMap from '../components/game/ProgressMap'
 import HomeScreen from '../components/game/HomeScreen'
 
+// 緑ロボット（DAS）専用レイアウト
+import DasWorkspaceLayout from '../components/das/DasWorkspaceLayout'
+
 export default function App() {
   const screen = useGameStore((s) => s.screen)
   const goHome = useGameStore((s) => s.goHome)
@@ -82,6 +85,11 @@ export default function App() {
 
   // トップページ（プレイヤー選択・相談選択）
   if (screen === 'home') return <HomeScreen />
+
+  // 緑ロボット（DAS）ミッション: DasWorkspaceLayout に委譲
+  if (mission.robotType === 'das') {
+    return <DasWorkspaceLayout mission={mission} />
+  }
 
   return (
     <div className="flex h-screen flex-col bg-ds-bg text-ds-text">

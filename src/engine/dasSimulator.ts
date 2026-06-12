@@ -1,0 +1,735 @@
+// ============================================================
+// DAS シミュレータ — 緑ロボット（Desktop Automation）を模擬アプリに対して実行する。
+//
+// 実行モデル（公式仕様準拠）:
+//   ・前方移動のみ（バックトラックなし）
+//   ・ガードチョイス: 複数ガードを並行監視 → 最初成立ガードの枝を排他実行
+//   ・For Each: スコープファインダーで起点特定 → 相対セレクタで各子を反復
+//   ・Loop/Break/Continue: 内部フラグで制御
+//   ・tick 駆動・純粋関数・シード乱数（決定的）
+// ============================================================
+
+import type { DasRobot, DasStep, DasAction, Guard, GuardType, DasFinder } from '../model/dasRobot'
+import type { MockApp, AppWidget } from '../model/mockApp'
+import { applyTimeline, findWidget } from '../model/mockApp'
+import type { SimRecord } from '../model/sim'
+
+// ---- 公開型定義 -----------------------------------------------
+
+export interface DasSimOptions {
+  /** シミュレーション最大 tick（既定 120） */
+  maxTick?: number
+  /** Timeout ガードの既定秒数（既定 60 秒 = 60 tick） */
+  defaultTimeoutTick?: number
+  /** シード値（ガードの成立 tick に影響しない。MockApp タイムラインで制御） */
+  seed?: number
+}
+
+export interface DasSimLogEntry {
+  stepId: string
+  stepName: string
+  status: 'ok' | 'skip' | 'error' | 'guard-waiting' | 'guard-matched'
+  /** ガード待機/成立の可視化文字列（例: '⏳待機(3tick)→✓locationFound 成立'） */
+  message: string
+  tick?: number
+}
+
+export interface DasSimResult {
+  ran: boolean
+  /** 変数名 → 抽出レコード列 */
+  data: Record<string, SimRecord[]>
+  log: DasSimLogEntry[]
+  errors: string[]
+  /** 消費した総 tick 数 */
+  totalTick: number
+  /** 各ガードチョイスの結果（どのガードが成立したか） */
+  guardResults: { stepId: string; winnerGuardType: GuardType; tick: number }[]
+}
+
+export const EMPTY_DAS_SIM: DasSimResult = {
+  ran: false,
+  data: {},
+  log: [],
+  errors: [],
+  totalTick: 0,
+  guardResults: [],
+}
+
+// ---- 内部状態 -------------------------------------------------
+
+interface SimState {
+  app: MockApp
+  opts: Required<DasSimOptions>
+  data: Record<string, SimRecord[]>
+  log: DasSimLogEntry[]
+  errors: string[]
+  guardResults: { stepId: string; winnerGuardType: GuardType; tick: number }[]
+  currentTick: number
+  /** For Each の反復中の現在ウィジェット（ネスト対応スタック） */
+  forEachStack: { scopeWidget: AppWidget; currentElement: AppWidget }[]
+  /** Loop 制御フラグ */
+  breakFlag: boolean
+  continueFlag: boolean
+}
+
+// ---- 公開 API -------------------------------------------------
+
+/**
+ * 緑ロボットを模擬アプリに対して実行する（純粋関数）。
+ *
+ * 実行モデル:
+ *   - 前方移動のみ（バックトラックなし）
+ *   - ガードチョイス: 並行監視 → 最初成立ガードの枝を排他実行
+ *   - For Each: スコープファインダーで起点を特定 → 相対セレクタで各子を反復
+ *   - Loop/Break/Continue: 内部フラグで制御
+ */
+export function runDasRobot(
+  robot: DasRobot,
+  app: MockApp,
+  opts?: DasSimOptions,
+): DasSimResult {
+  const resolvedOpts: Required<DasSimOptions> = {
+    maxTick: opts?.maxTick ?? 120,
+    defaultTimeoutTick: opts?.defaultTimeoutTick ?? 60,
+    seed: opts?.seed ?? 0,
+  }
+
+  const state: SimState = {
+    app,
+    opts: resolvedOpts,
+    data: {},
+    log: [],
+    errors: [],
+    guardResults: [],
+    currentTick: 0,
+    forEachStack: [],
+    breakFlag: false,
+    continueFlag: false,
+  }
+
+  try {
+    execSteps(state, robot.steps)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    state.errors.push(`シミュレーション例外: ${msg}`)
+    state.log.push({
+      stepId: 'sim-error',
+      stepName: 'シミュレーター',
+      status: 'error',
+      message: `致命的エラー: ${msg}`,
+    })
+  }
+
+  return {
+    ran: true,
+    data: state.data,
+    log: state.log,
+    errors: state.errors,
+    totalTick: state.currentTick,
+    guardResults: state.guardResults,
+  }
+}
+
+// ---- ステップ実行（再帰）--------------------------------------
+
+/**
+ * ステップ列を順に実行する。Break/Continue フラグが立ったら即座に戻る。
+ */
+function execSteps(state: SimState, steps: DasStep[]): void {
+  for (const step of steps) {
+    if (!step.enabled) {
+      state.log.push({
+        stepId: step.id,
+        stepName: step.name,
+        status: 'skip',
+        message: '無効化されたステップをスキップ',
+      })
+      continue
+    }
+    execStep(state, step)
+    if (state.breakFlag || state.continueFlag) return
+    if (state.currentTick >= state.opts.maxTick) {
+      state.errors.push('最大 tick 数を超過しました（暴走防止）')
+      return
+    }
+  }
+}
+
+function execStep(state: SimState, step: DasStep): void {
+  const action = step.action
+
+  switch (action.type) {
+    case 'OpenWindow':
+      execOpenWindow(state, step, action)
+      break
+
+    case 'Click':
+      execClick(state, step, action)
+      break
+
+    case 'ExtractValue':
+      execExtractValue(state, step, action)
+      break
+
+    case 'EnterText':
+      execEnterText(state, step, action)
+      break
+
+    case 'GuardedChoice':
+      execGuardedChoice(state, step, action)
+      break
+
+    case 'ForEach':
+      execForEach(state, step, action)
+      break
+
+    case 'Loop':
+      execLoop(state, step, action)
+      break
+
+    case 'Break':
+      state.breakFlag = true
+      state.log.push({ stepId: step.id, stepName: step.name, status: 'ok', message: 'Break: ループを終了します' })
+      break
+
+    case 'Continue':
+      state.continueFlag = true
+      state.log.push({ stepId: step.id, stepName: step.name, status: 'ok', message: 'Continue: 次の反復へスキップします' })
+      break
+
+    case 'Condition':
+      execCondition(state, step, action)
+      break
+
+    case 'Group':
+      state.log.push({ stepId: step.id, stepName: step.name, status: 'ok', message: `グループ「${action.name}」開始` })
+      execSteps(state, action.steps)
+      break
+  }
+}
+
+// ---- OpenWindow -----------------------------------------------
+
+function execOpenWindow(state: SimState, step: DasStep, action: Extract<DasAction, { type: 'OpenWindow' }>): void {
+  const widgets = applyTimeline(state.app, state.currentTick)
+  const rootWindow = widgets.find(
+    (w) => w.type === 'window' &&
+           w.visible &&
+           (w.attrs['title'] === action.windowTitle || w.attrs['name'] === action.windowTitle),
+  )
+
+  if (rootWindow) {
+    state.log.push({
+      stepId: step.id,
+      stepName: step.name,
+      status: 'ok',
+      message: `ウィンドウ「${action.windowTitle}」を開きました`,
+      tick: state.currentTick,
+    })
+  } else {
+    state.log.push({
+      stepId: step.id,
+      stepName: step.name,
+      status: 'error',
+      message: `ウィンドウ「${action.windowTitle}」が見つかりません（appName: ${action.appName}）`,
+      tick: state.currentTick,
+    })
+    state.errors.push(`ウィンドウ「${action.windowTitle}」が見つかりません`)
+  }
+  state.currentTick += 1
+}
+
+// ---- Click ----------------------------------------------------
+
+function execClick(state: SimState, step: DasStep, action: Extract<DasAction, { type: 'Click' }>): void {
+  const widgets = applyTimeline(state.app, state.currentTick)
+  const target = resolveWidget(state, widgets, action.finder)
+
+  if (!target) {
+    state.log.push({
+      stepId: step.id,
+      stepName: step.name,
+      status: 'error',
+      message: `クリック対象が見つかりません: ${action.finder.selector}`,
+      tick: state.currentTick,
+    })
+    state.errors.push(`クリック対象が見つかりません: ${action.finder.selector}`)
+  } else if (target.enabled === false) {
+    state.log.push({
+      stepId: step.id,
+      stepName: step.name,
+      status: 'error',
+      message: `クリック対象が無効化されています: ${target.attrs['name'] ?? target.id}`,
+      tick: state.currentTick,
+    })
+    state.errors.push(`クリック対象が無効化されています: ${target.attrs['name'] ?? target.id}`)
+  } else {
+    const clickLabel = action.clickCount === 2 ? 'ダブルクリック' : 'クリック'
+    state.log.push({
+      stepId: step.id,
+      stepName: step.name,
+      status: 'ok',
+      message: `${clickLabel}: 「${target.attrs['name'] ?? target.id}」`,
+      tick: state.currentTick,
+    })
+  }
+  state.currentTick += 1
+}
+
+// ---- ExtractValue ---------------------------------------------
+
+function execExtractValue(state: SimState, step: DasStep, action: Extract<DasAction, { type: 'ExtractValue' }>): void {
+  const widgets = applyTimeline(state.app, state.currentTick)
+  const target = resolveWidget(state, widgets, action.finder)
+
+  if (!target) {
+    state.log.push({
+      stepId: step.id,
+      stepName: step.name,
+      status: 'error',
+      message: `抽出対象が見つかりません: ${action.finder.selector}`,
+      tick: state.currentTick,
+    })
+    state.errors.push(`抽出対象が見つかりません: ${action.finder.selector}`)
+    state.currentTick += 1
+    return
+  }
+
+  // 座標固定セレクタかどうか判定（D5 の失敗体験用）
+  const isCoordinate = isCoordinateSelector(action.finder.selector)
+
+  // 値の取得: attribute 名でウィジェットから値を取り出す
+  let value: string
+  if (isCoordinate) {
+    // 座標固定: 列が入れ替わっていると意図しないセルの値になる
+    value = target.text ?? target.attrs[action.attribute] ?? ''
+  } else {
+    value = target.attrs[action.attribute] ?? target.text ?? ''
+  }
+
+  // 変数に格納
+  if (!state.data[action.toVariable]) state.data[action.toVariable] = []
+  const recIdx = state.data[action.toVariable].length
+  state.data[action.toVariable].push({ [action.attribute]: value })
+
+  state.log.push({
+    stepId: step.id,
+    stepName: step.name,
+    status: 'ok',
+    message: `値を抽出: ${action.toVariable}[${recIdx}].${action.attribute} = "${value}"${isCoordinate ? ' ⚠️座標固定' : ''}`,
+    tick: state.currentTick,
+  })
+  state.currentTick += 1
+}
+
+/** 座標固定セレクタの判定（'[x="..."]' or '[y="..."]' を含む） */
+function isCoordinateSelector(selector: string): boolean {
+  return /\[x="|y="/.test(selector)
+}
+
+// ---- EnterText ------------------------------------------------
+
+function execEnterText(state: SimState, step: DasStep, action: Extract<DasAction, { type: 'EnterText' }>): void {
+  const widgets = applyTimeline(state.app, state.currentTick)
+  const target = resolveWidget(state, widgets, action.finder)
+  const text = action.fromVariable
+    ? state.data[action.fromVariable]?.[0]?.[action.fromAttribute ?? ''] ?? ''
+    : action.text
+
+  if (!target) {
+    state.log.push({
+      stepId: step.id,
+      stepName: step.name,
+      status: 'error',
+      message: `入力対象が見つかりません: ${action.finder.selector}`,
+      tick: state.currentTick,
+    })
+    state.errors.push(`入力対象が見つかりません: ${action.finder.selector}`)
+  } else {
+    state.log.push({
+      stepId: step.id,
+      stepName: step.name,
+      status: 'ok',
+      message: `テキストを入力: 「${text}」→ ${target.attrs['name'] ?? target.id}`,
+      tick: state.currentTick,
+    })
+  }
+  state.currentTick += 1
+}
+
+// ---- GuardedChoice -------------------------------------------
+
+/**
+ * ガードチョイス実行アルゴリズム:
+ * 1. currentTick から始め、各 tick で全ガードの成立条件を並行評価
+ * 2. 最初に成立したガードの枝 steps を実行し、残りのガードは評価対象外（排他実行）
+ * 3. timeout ガードは currentTick + guard.seconds tick で成立
+ * 4. locationFound は findWidget() が undefined でないとき成立
+ * 5. applicationFound は root window が可視かつタイトルが一致するとき成立
+ */
+function execGuardedChoice(state: SimState, step: DasStep, action: Extract<DasAction, { type: 'GuardedChoice' }>): void {
+  if (action.guards.length === 0) {
+    state.log.push({
+      stepId: step.id,
+      stepName: step.name,
+      status: 'error',
+      message: 'ガードが設定されていません',
+    })
+    state.errors.push('ガードチョイス: ガードが設定されていません')
+    return
+  }
+
+  const startTick = state.currentTick
+  const maxEvalTick = state.opts.maxTick
+
+  // timeout ガードの成立 tick を事前計算（相対）
+  const timeoutTicks: number[] = action.guards.map((g) => {
+    if (g.type === 'timeout') {
+      return startTick + (g.seconds ?? state.opts.defaultTimeoutTick)
+    }
+    return Infinity
+  })
+
+  state.log.push({
+    stepId: step.id,
+    stepName: step.name,
+    status: 'guard-waiting',
+    message: `ガードチョイス: ${action.guards.map((g) => g.type).join(' / ')} を並行監視中…`,
+    tick: startTick,
+  })
+
+  let winnerIndex = -1
+  let winnerTick = -1
+
+  for (let tick = startTick; tick <= maxEvalTick; tick++) {
+    const widgets = applyTimeline(state.app, tick)
+
+    for (let i = 0; i < action.guards.length; i++) {
+      const guard = action.guards[i]
+      if (evaluateGuard(guard, widgets, state.app, tick, timeoutTicks[i])) {
+        winnerIndex = i
+        winnerTick = tick
+        break
+      }
+    }
+
+    if (winnerIndex >= 0) break
+  }
+
+  if (winnerIndex < 0) {
+    // maxTick を超えても成立しなかった
+    state.errors.push('ガードチョイス: 最大 tick 内にガードが成立しませんでした')
+    state.log.push({
+      stepId: step.id,
+      stepName: step.name,
+      status: 'error',
+      message: `ガードチョイス: ${state.opts.maxTick} tick 以内にガードが成立しませんでした`,
+      tick: state.currentTick,
+    })
+    state.currentTick = state.opts.maxTick
+    return
+  }
+
+  const winner = action.guards[winnerIndex]
+  const waitedTick = winnerTick - startTick
+
+  state.log.push({
+    stepId: step.id,
+    stepName: step.name,
+    status: 'guard-matched',
+    message: `⏳待機(${waitedTick}tick)→✓${winner.type} 成立（tick=${winnerTick}）`,
+    tick: winnerTick,
+  })
+
+  state.guardResults.push({
+    stepId: step.id,
+    winnerGuardType: winner.type,
+    tick: winnerTick,
+  })
+
+  state.currentTick = winnerTick + 1
+
+  // 成立したガードの枝ステップを実行（排他実行）
+  execSteps(state, winner.steps)
+}
+
+/** ガードが指定 tick で成立するか判定する */
+function evaluateGuard(
+  guard: Guard,
+  widgets: AppWidget[],
+  app: MockApp,
+  tick: number,
+  timeoutTick: number,
+): boolean {
+  switch (guard.type) {
+    case 'timeout':
+      return tick >= timeoutTick
+
+    case 'locationFound':
+      if (!guard.finder) return false
+      return findWidget(widgets, guard.finder.selector) !== undefined
+
+    case 'locationNotFound':
+      if (!guard.finder) return true
+      return findWidget(widgets, guard.finder.selector) === undefined
+
+    case 'locationRemoved':
+      // 初期状態に存在して、tick 時点で消えている場合に成立
+      if (!guard.finder) return false
+      {
+        const initialWidgets = applyTimeline(app, 0)
+        const wasPresent = findWidget(initialWidgets, guard.finder.selector) !== undefined
+        const nowAbsent = findWidget(widgets, guard.finder.selector) === undefined
+        return wasPresent && nowAbsent
+      }
+
+    case 'applicationFound':
+      // タイトルバーを持つウィンドウウィジェットが可視の場合に成立
+      if (!guard.finder) {
+        return widgets.some((w) => w.type === 'window' && w.visible)
+      }
+      {
+        const found = findWidget(widgets, guard.finder.selector)
+        return found !== undefined && found.visible
+      }
+
+    case 'applicationNotFound':
+      if (!guard.finder) {
+        return !widgets.some((w) => w.type === 'window' && w.visible)
+      }
+      {
+        const found = findWidget(widgets, guard.finder.selector)
+        return found === undefined || !found.visible
+      }
+
+    case 'treeStoppedChanging': {
+      // 指定ミリ秒（tick に換算: ms / 1000 tick）の間ツリーが変化しない
+      const stableTickCount = Math.max(1, Math.floor((guard.ms ?? 500) / 1000))
+      if (tick < stableTickCount) return false
+      // 直前 stableTickCount tick でイベントが無ければ成立
+      const hasRecentEvent = app.timeline.some(
+        (ev) => ev.tick > tick - stableTickCount && ev.tick <= tick,
+      )
+      return !hasRecentEvent
+    }
+
+    default:
+      return false
+  }
+}
+
+// ---- ForEach --------------------------------------------------
+
+/**
+ * For Each 実行アルゴリズム:
+ * 1. scopeFinder で起点ウィジェットを特定（scope として保持）
+ * 2. elementFinder.selector を相対セレクタとして scope の子孫から検索
+ * 3. 見つかった各ウィジェットを反復: body ステップを実行
+ */
+function execForEach(state: SimState, step: DasStep, action: Extract<DasAction, { type: 'ForEach' }>): void {
+  const widgets = applyTimeline(state.app, state.currentTick)
+
+  // スコープファインダーで起点ウィジェットを特定
+  const scopeWidget = findWidget(widgets, action.scopeFinder.selector)
+  if (!scopeWidget) {
+    state.log.push({
+      stepId: step.id,
+      stepName: step.name,
+      status: 'error',
+      message: `スコープファインダーが見つかりません: ${action.scopeFinder.selector}`,
+      tick: state.currentTick,
+    })
+    state.errors.push(`For Each: スコープファインダーが見つかりません: ${action.scopeFinder.selector}`)
+    state.currentTick += 1
+    return
+  }
+
+  // エレメントファインダー（相対セレクタ）で反復対象を取得
+  // 現在の tick での状態で全子孫を収集（'> ' 相対セレクタ対応）
+  const elements = collectElements(widgets, action.elementFinder.selector, scopeWidget)
+
+  if (elements.length === 0) {
+    state.log.push({
+      stepId: step.id,
+      stepName: step.name,
+      status: 'ok',
+      message: `For Each: 反復対象が 0 件（エレメントファインダー: ${action.elementFinder.selector}）`,
+      tick: state.currentTick,
+    })
+    state.currentTick += 1
+    return
+  }
+
+  state.log.push({
+    stepId: step.id,
+    stepName: step.name,
+    status: 'ok',
+    message: `For Each 開始: ${elements.length} 件を反復（スコープ: ${action.scopeFinder.selector}）`,
+    tick: state.currentTick,
+  })
+  state.currentTick += 1
+
+  // 各要素を反復
+  for (let i = 0; i < elements.length; i++) {
+    const elem = elements[i]
+    state.forEachStack.push({ scopeWidget, currentElement: elem })
+
+    state.log.push({
+      stepId: step.id,
+      stepName: `${step.name}[${i + 1}/${elements.length}]`,
+      status: 'ok',
+      message: `反復 ${i + 1}: ${elem.type}[${elem.attrs['name'] ?? elem.id}]`,
+      tick: state.currentTick,
+    })
+
+    state.continueFlag = false
+    execSteps(state, action.body)
+
+    state.forEachStack.pop()
+
+    if (state.breakFlag) {
+      state.breakFlag = false
+      break
+    }
+    state.continueFlag = false
+
+    if (state.currentTick >= state.opts.maxTick) break
+  }
+}
+
+/**
+ * スコープウィジェットの子孫からセレクタにマッチする要素を収集する。
+ * 相対セレクタ（'> ...'）の場合は scopeWidget の直接の子のみ。
+ */
+function collectElements(
+  _widgets: AppWidget[],
+  selector: string,
+  scopeWidget: AppWidget,
+): AppWidget[] {
+  const trimmed = selector.trim()
+
+  if (trimmed.startsWith('>')) {
+    // 直接の子のみ
+    const rest = trimmed.slice(1).trim()
+    return scopeWidget.children.filter((child) => {
+      if (!child.visible) return false
+      // タグ名のみの単純セレクタ
+      if (/^[a-zA-Z_][\w-]*$/.test(rest)) return child.type === rest
+      // 属性セレクタ付き
+      const dummy = findWidget([child], rest)
+      return dummy !== undefined
+    })
+  }
+
+  // 非相対: scope 配下の全子孫を再帰検索
+  const results: AppWidget[] = []
+  function recurse(children: AppWidget[]) {
+    for (const child of children) {
+      if (!child.visible) continue
+      const found = findWidget([child], trimmed)
+      if (found) results.push(found)
+      recurse(child.children)
+    }
+  }
+  recurse(scopeWidget.children)
+  return results
+}
+
+// ---- Loop -----------------------------------------------------
+
+function execLoop(state: SimState, step: DasStep, action: Extract<DasAction, { type: 'Loop' }>): void {
+  state.log.push({
+    stepId: step.id,
+    stepName: step.name,
+    status: 'ok',
+    message: 'Loop 開始',
+    tick: state.currentTick,
+  })
+
+  let guard = 0
+  while (state.currentTick < state.opts.maxTick) {
+    if (guard++ > 10000) {
+      state.errors.push('Loop: 最大反復回数を超過しました（暴走防止）')
+      break
+    }
+    state.continueFlag = false
+    execSteps(state, action.body)
+
+    if (state.breakFlag) {
+      state.breakFlag = false
+      break
+    }
+    state.continueFlag = false
+  }
+}
+
+// ---- Condition ------------------------------------------------
+
+function execCondition(state: SimState, step: DasStep, action: Extract<DasAction, { type: 'Condition' }>): void {
+  for (const branch of action.branches) {
+    // 'true' 条件はデフォルト分岐（必ず実行）
+    const condMet = branch.condition === 'true' || evaluateCondition(state, branch.condition)
+    if (condMet) {
+      state.log.push({
+        stepId: step.id,
+        stepName: step.name,
+        status: 'ok',
+        message: `条件分岐: 「${branch.condition}」が成立`,
+        tick: state.currentTick,
+      })
+      execSteps(state, branch.steps)
+      return
+    }
+  }
+  state.log.push({
+    stepId: step.id,
+    stepName: step.name,
+    status: 'skip',
+    message: '条件分岐: いずれの条件も成立しませんでした',
+    tick: state.currentTick,
+  })
+}
+
+/** 簡易条件評価（教育用: 'true'/'false' 文字列のみ対応） */
+function evaluateCondition(_state: SimState, condition: string): boolean {
+  return condition.trim().toLowerCase() === 'true'
+}
+
+// ---- ファインダー解決 -----------------------------------------
+
+/**
+ * DasFinder を解決して対応するウィジェットを返す。
+ * For Each 実行中は forEachStack の現在要素を起点（scope）として使う。
+ *
+ * セレクタ解決の優先順位:
+ *   1. セレクタが '>' で始まる場合: scope の直接の子を検索
+ *   2. For Each body 内かつ scopeRef が設定されている場合: currentElement 自体にマッチするか確認
+ *      → マッチしなければ currentElement の子孫を検索
+ *   3. それ以外: 全ツリーを検索
+ */
+function resolveWidget(
+  state: SimState,
+  widgets: AppWidget[],
+  finder: DasFinder,
+): AppWidget | undefined {
+  const currentFrame =
+    state.forEachStack.length > 0
+      ? state.forEachStack[state.forEachStack.length - 1]
+      : undefined
+
+  const scope = currentFrame?.currentElement
+
+  // scopeRef が設定されている場合（For Each body 内で currentElement を基点とする）
+  // または '>' 始まりの相対セレクタ
+  if (scope && (finder.scopeRef || finder.selector.trim().startsWith('>'))) {
+    return findWidget(widgets, finder.selector, scope)
+  }
+
+  // For Each body 内で、セレクタが currentElement 自体にマッチするか確認
+  if (scope) {
+    const directMatch = findWidget([scope], finder.selector)
+    if (directMatch) return directMatch
+  }
+
+  return findWidget(widgets, finder.selector, scope)
+}

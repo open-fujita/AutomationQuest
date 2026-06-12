@@ -5,6 +5,8 @@
 import type { Robot } from './robot'
 import type { MockSite } from './site'
 import type { SimResult } from './sim'
+import type { MockApp } from './mockApp'
+import type { DasRobot, DasSuggestedConfig } from './dasRobot'
 
 /** 観察 → 見立てクイズの 1 問 */
 export interface DeductionQuestion {
@@ -20,6 +22,29 @@ export interface DeductionQuestion {
 export interface MissionCheckCtx {
   robot: Robot
   sim: SimResult
+}
+
+// ---- DAS 緑ロボット用 ----------------------------------------
+
+/** DAS ミッションのバリデーションコンテキスト */
+export interface DasMissionCheckCtx {
+  robot: DasRobot
+  // SimResult は dasSimulator.ts の DasSimResult を参照するが、
+  // 循環参照を避けるため unknown を受け入れる形で使う。
+  // dasValidator.ts が実際の型を付ける。
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sim: any
+}
+
+/**
+ * DAS 受け入れ条件 1 件。
+ * DasMissionCheckCtx を使う以外は MissionCheck と同じ構造。
+ */
+export interface DasMissionCheck {
+  id: string
+  label: string
+  test: (ctx: DasMissionCheckCtx) => boolean
+  failHint: string
 }
 
 /** 受け入れ条件 1 件 */
@@ -69,4 +94,21 @@ export interface Mission {
   reveal: (sim: SimResult) => string
   /** このミッションで解禁される用語集キー */
   glossary: string[]
+
+  // ---- 緑ロボット（DAS）用 optional フィールド ----------------
+
+  /** 'ds'=青ロボット（既定）/ 'das'=緑ロボット */
+  robotType?: 'ds' | 'das'
+
+  /** 緑ロボット用: 模擬デスクトップアプリ定義（tick タイムライン付き） */
+  mockApp?: MockApp
+
+  /** 緑ロボット用: 初期 DasRobot 状態を作るシード関数 */
+  dasSeed?: (robot: DasRobot) => void
+
+  /** 緑ロボット用: 受け入れ条件（DasMissionCheck を使う） */
+  dasChecks?: DasMissionCheck[]
+
+  /** 緑ロボット用: 推奨ステップ構成（UI のガイド表示に使う） */
+  dasSuggested?: DasSuggestedConfig
 }
