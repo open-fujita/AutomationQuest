@@ -37,6 +37,7 @@ import RecorderView from './RecorderView'
 import DasPalette from './DasPalette'
 import DasStatePane from './DasStatePane'
 import MyProjectsPane from '../ds/MyProjectsPane'
+import QuestNavigator from '../game/QuestNavigator'
 
 interface DasWorkspaceLayoutProps {
   mission: Mission
@@ -139,6 +140,9 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
           validation={validation}
           ran={sim.ran}
         />
+      )}
+      {phase === 'build' && (
+        <QuestNavigator outcomes={validation.outcomes} />
       )}
 
       {/* DAS ワークスペース本体: ライトテーマ領域 */}

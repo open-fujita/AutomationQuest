@@ -22,6 +22,7 @@ import Glossary from '../components/game/Glossary'
 import ProgressMap from '../components/game/ProgressMap'
 import HomeScreen from '../components/game/HomeScreen'
 import HealthRulesPanel from '../components/game/HealthRulesPanel'
+import QuestNavigator from '../components/game/QuestNavigator'
 
 import { diagnose } from '../engine/healthCheck'
 
@@ -114,6 +115,9 @@ export default function App() {
       />
 
       {showWorkspaceChrome && <MissionBar mission={mission} validation={validation} ran={sim.ran} />}
+      {phase === 'build' && (
+        <QuestNavigator outcomes={validation.outcomes} />
+      )}
 
       <main className="flex min-h-0 flex-1 bg-das-panelAlt">
         {/* 左: マイプロジェクト + パレット */}

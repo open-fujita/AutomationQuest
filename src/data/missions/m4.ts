@@ -90,9 +90,9 @@ export const M4: Mission = {
     ]
   },
   checks: [
-    requireLoadPageUrl(SITE.url, '「ページを読み込む」の URL を設定する', '開始の次の「ページを読み込む」を選び、アクションタブで「このページの URL を使う」を押してください。'),
-    requireAnyRecordCount(5, 'ループ枝で 5 件すべて集まる', '［実行］してください。ループ枝が各行を回って 5 件集めます。'),
-    requireNoErrors('実行時にエラーが無い', 'ステータスビューのエラーを確認してください。'),
+    requireLoadPageUrl(SITE.url, '「ページを読み込む」の URL を設定する', '⚙ 開始の次の「ページを読み込む」を選び、アクションタブで「このページの URL を使う」を押してください。'),
+    requireAnyRecordCount(5, 'ループ枝で 5 件すべて集まる', '▶ ［実行］してください。ループ枝が各行を回って 5 件集めます。'),
+    requireNoErrors('実行時にエラーが無い', '▶ ステータスビューのエラーを確認してください。'),
   ],
   reveal: (sim) => {
     let count = 0
