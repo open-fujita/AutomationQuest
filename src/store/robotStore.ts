@@ -38,6 +38,8 @@ function makeDefaultAction(type: StepActionType): StepAction {
       return { type: 'SaveFile', fileName: '結果.xlsx' }
     case 'ReturnValue':
       return { type: 'ReturnValue', variableName: '' }
+    case 'CallRobot':
+      return { type: 'CallRobot', robotName: '' }
   }
 }
 
@@ -68,6 +70,12 @@ interface RobotState {
 
   setSim: (sim: SimResult) => void
   resetSim: () => void
+
+  /**
+   * 練習編用: Robot を直接セット（loadMission を通さず任意の Robot を差し込む）。
+   * 既存ミッション M1〜M5 は loadMission を使うので影響なし（後方互換 optional）。
+   */
+  setRobot: (robot: Robot) => void
 }
 
 export const useRobotStore = create<RobotState>((set, get) => ({
@@ -219,4 +227,6 @@ export const useRobotStore = create<RobotState>((set, get) => ({
 
   setSim: (sim) => set({ sim }),
   resetSim: () => set({ sim: EMPTY_SIM }),
+
+  setRobot: (robot) => set({ robot, selectedStepId: null, sim: EMPTY_SIM }),
 }))

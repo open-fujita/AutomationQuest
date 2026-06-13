@@ -14,6 +14,7 @@ export default function HomeScreen() {
   const continueGame = useGameStore((s) => s.continueGame)
   const startFromBeginning = useGameStore((s) => s.startFromBeginning)
   const startMission = useGameStore((s) => s.startMission)
+  const goPractice = useGameStore((s) => s.goPractice)
 
   const [newName, setNewName] = useState('')
   const [showHealthRules, setShowHealthRules] = useState(false)
@@ -214,6 +215,30 @@ export default function HomeScreen() {
                 </div>
               </div>
             )}
+
+            {/* ---- 実機練習編（アクション別レクチャー） ---- */}
+            <div className="mt-4 border-t border-ds-border pt-4">
+              <div className="mb-1.5 flex items-center gap-2">
+                <span className="inline-block rounded bg-ds-accent2/20 px-2 py-0.5 text-[11px] text-ds-accent2">
+                  🖥 実機練習編
+                </span>
+              </div>
+              <button
+                onClick={goPractice}
+                className="flex w-full items-center gap-3 rounded-lg border border-ds-accent2/40 bg-ds-bg/40 px-3 py-3 text-left hover:border-ds-accent2"
+              >
+                <span className="text-[22px]">🎓</span>
+                <span className="flex-1">
+                  <span className="block text-[13px] font-semibold text-ds-text">
+                    実機練習編（アクション別レクチャー）
+                  </span>
+                  <span className="block text-[11px] text-ds-textDim">
+                    各アクションの操作方法をマニュアル代わりに習得。DS シェルを実際に操作してみましょう。
+                  </span>
+                </span>
+                <span className="text-[12px] text-ds-accent2">▶</span>
+              </button>
+            </div>
 
             {/* 両シリーズが未追加の場合のフォールバック（D1〜D5未定義時） */}
             {MISSIONS.filter((m) => m.robotType === 'das').length === 0 &&

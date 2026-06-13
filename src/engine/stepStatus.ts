@@ -49,5 +49,7 @@ export function stepIssue(step: RobotStep): string | null {
       return a.fileName.trim() === '' ? '保存ファイル名が未設定です' : null
     case 'ReturnValue':
       return a.variableName ? null : '返す変数が未設定です'
+    case 'CallRobot':
+      return a.robotName.trim() === '' ? '呼び出すロボットが未設定です' : null
   }
 }

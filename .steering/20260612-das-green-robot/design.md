@@ -2009,3 +2009,263 @@ HomeScreen 内に `useState` で `showHealthRules` を管理し、`HealthRulesPa
 4. **HealthDiagnosis の初期展開/折りたたみ**: 設計では初期展開（教育目的で見せたい）とするが、プレイテストで「邪魔」との声があれば初期折りたたみに変更可能（useState のデフォルト値を変えるだけ）
 
 ---
+
+## 実機練習編（Practice Studio）設計（2026-06-13 追補）
+
+### 目的
+
+ミッション（クエスト）ではない「自由練習モード」として、BizRobo! Design Studio の各アクションをマニュアル代わりに WEB アプリ上で操作体験できる機能を提供する。実機 DS シェル（参照画像: `.capture/docs2026/full_BER_real.png` = 青ロボット main_1.robot、`full_Robot_real.png` = 緑ロボット sub.robot）のレイアウトを再現した Practice Studio シェル上で、紹介タブのレクチャー一覧 → ガイドバー（手順指示 + done 述語の自動チェック + 次へ）→ 完了、の流れでアクション操作を学習する。緑ロボットのステップ列（実機 sub.robot に存在する「参照」「ダウン スクロール」等）は藤田さん指示で再現対象外。
+
+---
+
+### 全体構成図
+
+```
+┌─── PracticeStudio（screen='practice' 時に App.tsx が描画）──────────────────────────────────────┐
+│                                                                                                 │
+│ ┌── MenuBar ──────────────────────────────────────────────────────────────────────────────────┐  │
+│ │ ファイル(F) │ 編集(E) │ 表示(V) │ デバッグ(D) │ ツール(T) │ 設定(S) │ ウィンドウ(W) │ ヘルプ(H)│  │
+│ └────────────────────────────────────────────────────────────────────────────────────────────┘  │
+│ ┌── PracticeToolbar ──────────────────────────────────────────────── [ 🔍 検索... Aa .* ] ──┐  │
+│ │ 📄 📂 💾 | ▶ ⏸ ⏹ | ↪ ↩ | 🔍 🔎 ⊞ | ✂️ 📋 📌 | ↶ ↷                                   │  │
+│ └────────────────────────────────────────────────────────────────────────────────────────────┘  │
+│ ┌── GuideBar（レクチャー進行中のみ表示）────────────────────────────────────────────────────┐  │
+│ │ [レクチャー] ブラウザ  ステップ 1/3  ✓完了          [レクチャー終了]                      │  │
+│ │ パレットの「アプリケーション」から「ブラウザ」を…  💡ヒント   [次へ →]                    │  │
+│ │ ████░░░░ (プログレスバー)                                                                 │  │
+│ └────────────────────────────────────────────────────────────────────────────────────────────┘  │
+│                                                                                                 │
+│ ┌─────────────────┐ ┌── FileTabs ──────────────────────────────────────┐ ┌──────────────────┐  │
+│ │ ProjectTree     │ │ [デザイン] [デバッグ] | 🏠紹介 ✕ | sub.robot* ✕  │ │  右ペイン        │  │
+│ │ (マイ プロジェクト)│ │ | main_1.robot ✕ | info.type ✕                  │ │  (タブ内容依存)  │  │
+│ │                 │ ├────────────────────────────────────────────────────┤ │                  │  │
+│ │ Local           │ │                                                    │ │  ・intro:        │  │
+│ │ └ connector     │ │  タブコンテンツ（activeTab に応じて切替）           │ │    なし（非表示） │  │
+│ │   ├ DifyConnector│ │                                                    │ │  ・main1:        │  │
+│ │   ├ info.type   │ │  intro  → IntroTab（レクチャー一覧）               │ │    PropertiesPane│  │
+│ │   ├ main_1 robot│ │  main1  → RobotView（青ロボット/再利用）           │ │    （青/再利用）  │  │
+│ │   └ sub  robot* │ │  sub    → DasWorkflowView（緑ロボット/再利用）     │ │  ・sub:          │  │
+│ │ デモ_薬剤部…    │ │           + RecorderView（MockApp/再利用、下部）   │ │    DasStatePane  │  │
+│ │ DS データベース  │ │  infotype → TypeEditorTab（info.type属性一覧）    │ │    （緑/再利用）  │  │
+│ │ MC (localhost)  │ │                                                    │ │  ・infotype:     │  │
+│ │ windows_mc…     │ │                                                    │ │    なし（非表示） │  │
+│ │ tmp (mini…)     │ │                                                    │ │                  │  │
+│ │                 │ │                                                    │ │                  │  │
+│ │ ── パレット ──  │ │                                                    │ │                  │  │
+│ │ (DasPalette     │ │                                                    │ │                  │  │
+│ │  カタログ表示   │ │                                                    │ │                  │  │
+│ │  sub タブの時   │ │                                                    │ │                  │  │
+│ │  のみ表示)      │ │                                                    │ │                  │  │
+│ └─────────────────┘ └────────────────────────────────────────────────────┘ └──────────────────┘  │
+│ ┌── StatusBar ─────────────────────────────────────────────────────────────────────────── 🔴 ┐  │
+│ │ 準備が完了しました。                             about:blank                                │  │
+│ └────────────────────────────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### レクチャーデータモデル（Lecture / LectureStep / done 述語）
+
+#### 実装済みの型（`src/data/lectures.ts`）
+
+```typescript
+interface LectureStep {
+  id: string
+  instruction: string                     // 操作指示文
+  done: ((robot: any) => boolean) | null  // 完了判定述語（null = 判定なし）
+  hint?: string                           // 詰まったときのヒント
+}
+
+interface Lecture {
+  id: string
+  actionLabel: string       // アクション正式名（DAS_ACTION_LABELS 準拠）
+  robotType: 'das' | 'ds'   // 対象ロボット種別
+  overview: string           // 概要説明（空文字 = 準備中）
+  steps: LectureStep[]       // 操作手順（空配列 = 準備中）
+  category: string           // カタログカテゴリ名
+}
+```
+
+#### 初期 7 本のレクチャー
+
+| ID | アクション名 | 種別 | ステップ数 | 操作対象 |
+|---|---|---|---|---|
+| `lec-browser` | ブラウザ | 緑 | 3 | sub.robot |
+| `lec-click` | クリック | 緑 | 3 | sub.robot |
+| `lec-extract` | 値を抽出 | 緑 | 3 | sub.robot |
+| `lec-entertext` | テキストを入力 | 緑 | 3 | sub.robot |
+| `lec-foreach` | 要素の繰り返し | 緑 | 3 | sub.robot |
+| `lec-guardedchoice` | ガード チョイス | 緑 | 4 | sub.robot |
+| `lec-callrobot` | ロボットを呼び出す | 青 | 3 | main_1.robot |
+
+加えて `LECTURES_COMING_SOON`（11 件）が準備中として宣言済み。UI では一覧に名前を出し「準備中」バッジを表示する。
+
+#### done 述語の形骸化防止方針
+
+done 述語の設計原則は「段階的に厳しくなる判定」:
+
+1. **ステップ s1**: 当該アクション型のステップがロボットに存在するか（`hasDasTopStep(robot, 'Browser')`）。パレットからの追加を検出する最低限のゲート
+2. **ステップ s2**: s1 の前提に加え、特定フィールドが設定されているか（例: `browserAction === 'pageLoad'`）。カードを展開して設定を行ったことを検出
+3. **ステップ s3**: s2 の前提に加え、さらに別のフィールドが設定されているか（例: `url.trim().length > 0`）。複数フィールドの設定完了を検出
+
+この段階構造により「1 ステップ目で追加しただけで全部のチェックが通ってしまう」形骸化を防ぐ。テストファイル `practice.test.ts`（66 件）で空ロボットでの false → 設定後の true を全述語で網羅検証済み。
+
+done が `null` のステップ（例: ガードチョイスの s2「展開して確認」）は UI 確認のみの説明ステップで、`checkLectureStep` は常に `true` を返す。
+
+---
+
+### コンポーネント分割と既存再利用マップ
+
+#### 新規作成済みコンポーネント（`src/components/practice/`）
+
+| コンポーネント | 役割 | 実装状態 |
+|---|---|---|
+| `MenuBar.tsx` | DS シェルのメニューバー。ファイル/編集/表示/デバッグ/ツール/設定/ウィンドウ/ヘルプ。大半 disabled、「ゲームに戻る」のみ有効 | 完了 |
+| `PracticeToolbar.tsx` | アイコンツールバー。新規/保存/実行系/ズーム/クリップボード/元に戻す。実行系は「練習編では実行できません」をステータスバーに表示。右端に検索ボックス | 完了 |
+| `ProjectTree.tsx` | 「マイ プロジェクト」ツリー。`PRACTICE_TREE` を再帰描画。展開/折りたたみ、ダブルクリックでタブを開く | 完了 |
+| `FileTabs.tsx` | ファイルタブバー。デザイン/デバッグ切替 + 紹介/sub.robot*/main_1.robot/info.type。タブ閉じ・再オープン対応 | 完了 |
+| `IntroTab.tsx` | 紹介タブ = レクチャー一覧。`LECTURES` + `LECTURES_COMING_SOON` をカテゴリ別に表示。「▶ レクチャーを開始」ボタンで開始 | 完了 |
+| `TypeEditorTab.tsx` | info.type タブ。`INFO_TYPE_ATTRIBUTES` を表形式で読み取り表示 | 完了 |
+| `GuideBar.tsx` | レクチャー進行中に表示されるガイドバー。手順指示 + 完了チェックマーク + 次へボタン + プログレスバー | 完了 |
+| `StatusBar.tsx` | 最下部ステータスバー。flash() メソッドを ref で公開。メッセージのトースト表示 | 完了 |
+
+#### 未作成コンポーネント（設計として規定）
+
+| コンポーネント | 役割 | 備考 |
+|---|---|---|
+| `PracticeStudio.tsx` | Practice Studio 全体のシェル統合コンポーネント。上記 8 コンポーネント + 既存再利用コンポーネント群を組み合わせ、レクチャーエンジンの状態管理（現在レクチャー / 現在ステップ / done 判定のポーリング）を持つ。App.tsx の `screen === 'practice'` 分岐で描画される | 未作成 |
+
+#### 既存コンポーネントの再利用
+
+| 既存コンポーネント | 再利用箇所 | 再利用方法 |
+|---|---|---|
+| `RobotView.tsx` | main_1.robot タブ（青ロボットエディタ） | props で `robot` を渡す。robotStore ではなく practice ローカル状態から供給 |
+| `PropertiesPane.tsx` | main_1.robot タブの右ペイン（青ロボットプロパティ） | 同上。CallRobot の「開く」ボタンで sub タブへ遷移する導線を追加 |
+| `DasWorkflowView.tsx` | sub.robot タブ（緑ロボットエディタ） | dasRobotStore を直接参照。空ロボット初期状態から自由にステップ追加可能 |
+| `RecorderView.tsx` | sub.robot タブの下部（模擬アプリ画面） | レクチャー用 MockApp（簡易版、静的 widgets）を props で渡す。ミッション用の tick タイムラインは不要 |
+| `DasPalette.tsx` | 左ペイン下部（sub タブ選択時のみ表示） | そのまま再利用。カタログ表示でステップ追加 |
+| `DasStatePane.tsx` | sub タブの右ペイン | そのまま再利用。変数一覧表示 |
+
+**再利用上の課題と解決策**: `RobotView` と `PropertiesPane` は `robotStore` に直接依存している。Practice Studio では practice ローカルの Robot 状態（`createMain1Robot()` の結果）を使いたい。解決策は以下 2 つを検討し、案 2 を採用（後述のアーキテクチャ判断参照）。
+
+---
+
+### 状態管理（practice が既存ストア / 進捗を汚染しない設計）
+
+#### 基本方針
+
+Practice Studio は既存の `gameStore`（ミッション進捗）・`robotStore`（青ロボット状態）・`dasRobotStore`（緑ロボット状態）に対して**書き込み汚染をしない**設計とする。
+
+| ストア | Practice Studio からの操作 | 汚染回避の方法 |
+|---|---|---|
+| `gameStore` | `screen: 'practice'` への遷移（`goPractice()`）と `goHome()` への復帰のみ | 実装済み。`currentMissionId` / `completedMissions` / `phase` には一切触れない |
+| `robotStore` | main_1.robot タブで青ロボットの表示に使う可能性あり | **直接使わない**。PracticeStudio 内のローカル state に `createMain1Robot()` のスナップショットを保持し、RobotView / PropertiesPane にはそこから props で供給する（案 2 採用） |
+| `dasRobotStore` | sub.robot タブで緑ロボットのステップ追加に使う | **レクチャー開始時に `loadMission` 相当で空ロボットをロード**する。レクチャー終了時にリセット。ただし dasRobotStore はミッション状態と共用のため、practice ⇔ play 切替時に状態が混ざるリスクがある。これは practice 開始時に必ず `createSubRobot()` で初期化することで回避する |
+| `localStorage` | 一切書き込まない | Practice Studio にはプレイヤー進捗の永続化がない（レクチャーの「どこまでやったか」は永続化しない。都度やり直し前提） |
+
+#### レクチャーエンジンの状態（PracticeStudio ローカル state）
+
+```typescript
+// PracticeStudio.tsx 内の useState 群
+const [activeLectureId, setActiveLectureId] = useState<string | null>(null)
+const [lectureStepIndex, setLectureStepIndex] = useState(0)
+const [activeTabId, setActiveTabId] = useState<PracticeTabId>('intro')
+const [openTabs, setOpenTabs] = useState<PracticeTab[]>(DEFAULT_PRACTICE_TABS)
+const [main1Robot, setMain1Robot] = useState<Robot>(() => createMain1Robot())
+const [designMode, setDesignMode] = useState<'デザイン' | 'デバッグ'>('デザイン')
+```
+
+レクチャー進行状態は全て PracticeStudio のローカル state。コンポーネントがアンマウントされれば消える（永続化不要）。
+
+#### done 述語のポーリング
+
+レクチャー進行中、GuideBar の `isDone` を更新するために done 述語を定期的に評価する必要がある。
+
+```typescript
+// PracticeStudio.tsx 内
+const currentLecture = activeLectureId ? getLecture(activeLectureId) : null
+const currentStep = currentLecture?.steps[lectureStepIndex]
+
+// 緑ロボットの場合: dasRobotStore から最新の robot を取得
+const dasRobot = useDasRobotStore((s) => s.robot)
+// 青ロボットの場合: main1Robot ローカル state を使用
+const targetRobot = currentLecture?.robotType === 'das' ? dasRobot : main1Robot
+
+const isDone = currentStep
+  ? checkLectureStep(currentStep, targetRobot)
+  : false
+```
+
+done 述語は `useDasRobotStore` の selector が robot 変更時に自動で再レンダリングをトリガーするため、明示的なポーリング（setInterval）は不要。React の通常のリアクティブフローで done 判定が自動更新される。
+
+---
+
+### 代替案比較
+
+#### 比較 1: Practice Studio のシェル実装方式
+
+| 案 | メリット | デメリット |
+|---|---|---|
+| **案 1: 既存 App.tsx レイアウトの拡張**（screen='practice' 分岐を App.tsx 内に直接追加） | ファイル数が増えない。App.tsx 内で screen 分岐するだけ | App.tsx が既に 200 行超で、practice 用のレクチャーエンジン状態・タブ管理・ロボット切替ロジックが追加されると 400 行以上に膨れる。既存の play / home の分岐と practice の分岐が混ざって可読性が大幅低下 |
+| **案 2: PracticeStudio を専用コンポーネントとして新規作成（採用）** | Practice Studio のレイアウト・レクチャーエンジン・タブ管理が 1 ファイルに閉じ込められる。App.tsx は `screen === 'practice' ? <PracticeStudio /> : ...` の 1 行分岐のみ追加 | 新規ファイルが 1 つ増える。ただし PracticeStudio は 8 つの practice/ コンポーネント + 再利用コンポーネントの統合点であり、コンポーネント設計として自然 |
+
+**採用: 案 2**。理由: DasWorkspaceLayout が緑ロボット専用レイアウトとして独立しているのと同じパターン。Practice Studio は「ミッション」ではなく「自由練習」という異なるモードのため、独立したシェルコンポーネントとして設計するのが適切。App.tsx は `screen` ごとに 1 コンポーネントを描画するだけのルーターに留まる。
+
+#### 比較 2: 青ロボット（RobotView / PropertiesPane）の状態供給方式
+
+| 案 | メリット | デメリット |
+|---|---|---|
+| **案 1: robotStore をそのまま使う**（practice 開始時に `robotStore.loadRobot(createMain1Robot())` を呼ぶ） | 既存コンポーネントを無修正で再利用。RobotView / PropertiesPane は robotStore から自動取得 | **汚染リスク**: practice モードで robotStore を書き換えると、play モードに戻ったときにミッションの Robot 状態が上書きされる。`startMission` で再ロードされるとはいえ、中断・直帰時に汚染が残る。また robotStore の `loadMission` は Mission 前提の初期化ロジックを含み、Practice 用途と合わない |
+| **案 2: PracticeStudio ローカル state + props 供給（採用）** | robotStore を一切汚染しない。PracticeStudio 内で `useState<Robot>(createMain1Robot())` を持ち、RobotView / PropertiesPane には `robot` / `selectedStepId` 等を props で渡す | RobotView / PropertiesPane が現在 `useRobotStore()` を直接呼んでいるため、**props 対応の修正が必要**。ただし修正は「store 直接参照」を「props 優先、なければ store fallback」に変えるだけで、既存の play モードには影響しない |
+
+**採用: 案 2**。理由: 汚染回避が最優先。practice で robotStore を書き換えるのは設計として不健全。RobotView / PropertiesPane を props 対応にする変更量は中程度だが、一度やれば将来的にテスト用途（Storybook 等）でも活きる。代替として RobotView / PropertiesPane を「ストア依存版」と「props 版」に分けるラッパー方式も考えられるが、ラッパーの方が複雑になるため直接 props 対応を採用する。
+
+#### 比較 3: レクチャー完了判定の方式
+
+| 案 | メリット | デメリット |
+|---|---|---|
+| **案 1: ロボット状態述語（採用）** — done 関数が `(robot: DasRobot | Robot) => boolean` でロボット状態を直接検査 | 純粋関数で決定的。テストが容易（`practice.test.ts` の 66 件で実証済み）。UI イベントの取りこぼしがない | ロボット状態だけでは判定できない操作（「タブを切り替えた」「カードを展開した」等の UI 操作）を検出できない。そのようなステップは `done: null`（常に完了扱い）にする必要がある |
+| **案 2: UI イベントフック** — done 判定を「ユーザーがボタンをクリックした」「ドロップダウンを変更した」等の DOM イベントで検出 | タブ切替・カード展開・ドロップダウン操作など、ロボット状態に反映されない UI 操作も正確に検出できる | テストが困難（DOM イベントの再現が必要）。イベントハンドラの配線が各コンポーネントに散在し、コンポーネントがレクチャーエンジンに強く結合する。イベントの取りこぼし（race condition）が発生しやすい |
+
+**採用: 案 1**。理由: 教育ゲームとして重要なのは「正しいロボット構成が組めたか」であり、「どの UI 操作をしたか」ではない。ロボット状態述語は純粋関数であり、`practice.test.ts` で 66 件のテストが既に通っている。UI 確認のみのステップ（「展開して確認してください」等）は `done: null` にして `checkLectureStep` が常に `true` を返すことで対応済み。この判断により、Practice Studio のコンポーネント群はレクチャーエンジンを一切意識する必要がなく、疎結合が保たれる。
+
+---
+
+### 影響範囲分析
+
+| 領域 | 影響内容 | リスク |
+|---|---|---|
+| `src/app/App.tsx` | `screen === 'practice'` 分岐を追加し `<PracticeStudio />` を描画（~3 行追加） | Low |
+| `src/store/gameStore.ts` | `Screen` 型に `'practice'` 追加済み。`goPractice()` アクション追加済み。**変更不要**（実装完了） | Low |
+| `src/data/practice.ts` | シードデータ（PRACTICE_TREE / DEFAULT_PRACTICE_TABS / createMain1Robot / createSubRobot / INFO_TYPE_ATTRIBUTES）。**変更不要**（実装完了） | Low |
+| `src/data/lectures.ts` | レクチャー定義（LECTURES 7 本 + LECTURES_COMING_SOON 11 件 + ヘルパー関数群）。**変更不要**（実装完了） | Low |
+| `src/data/practice.test.ts` | 66 件のユニットテスト。**変更不要**（実装完了・全件パス） | Low |
+| `src/model/robot.ts` | `CallRobot` アクション型追加済み。**変更不要**（実装完了） | Low |
+| `src/components/practice/` 8 ファイル | MenuBar / PracticeToolbar / ProjectTree / FileTabs / IntroTab / TypeEditorTab / GuideBar / StatusBar。**変更不要**（実装完了） | Low |
+| `src/components/practice/PracticeStudio.tsx` | **新規作成が必要**。8 コンポーネント + 再利用コンポーネントの統合。レクチャーエンジン状態管理 | **Med**: 最大の実装タスク。タブ切替・レクチャー状態・ロボット初期化の統合 |
+| `src/components/ds/RobotView.tsx` | props 対応の変更（store 直接参照 → props 優先 fallback）。Practice Studio で main_1.robot を表示するために必要 | Med: 既存 play モードへの影響なしを確認する必要あり |
+| `src/components/ds/PropertiesPane.tsx` | 同上。加えて CallRobot の「開く」ボタンで sub タブへ遷移するコールバック props の追加 | Med |
+| `src/components/das/DasWorkflowView.tsx` | **変更不要**。dasRobotStore を直接参照しており、Practice Studio では dasRobotStore に sub.robot を直接ロードして使う | Low |
+| `src/components/das/DasPalette.tsx` | **変更不要**。dasRobotStore の `addStep` を直接呼ぶ | Low |
+| `src/components/das/RecorderView.tsx` | Practice Studio 用の簡易 MockApp（静的 widgets）を渡す必要あり。既存 props で対応可能（MockApp は既に props 受け取り） | Low |
+| `src/components/das/DasStatePane.tsx` | **変更不要** | Low |
+| `src/store/dasRobotStore.ts` | Practice Studio 開始時に `createSubRobot()` で初期化。既存の `loadMission` とは別の初期化パスが必要か検討 → `loadMission` は Mission 前提なので、practice 用には dasRobotStore に `loadPracticeRobot(robot: DasRobot)` を追加するか、直接 `set({ robot: createSubRobot(), ... })` を呼ぶ | Low-Med |
+| `src/components/game/HomeScreen.tsx` | 「実機練習編」ボタンの追加（`goPractice()` を呼ぶ導線）。実装済みかどうかは未確認、未実装なら追加が必要 | Low |
+| 既存 M1-M5 / D1-D5 のミッション動作 | **影響なし**。Practice Studio は独立した screen で、ミッション系のストア・コンポーネントに書き込まない | Low |
+| 既存テスト（87 件 + practice 66 件 = 153 件） | Practice Studio の統合テストは PracticeStudio.tsx 新規作成後に追加検討。既存テストは全件パスを維持 | Low |
+
+---
+
+### docs/ への波及
+
+前回設計・前々回設計と同じく `docs/` 未整備のため更新不要。
+
+---
+
+### 未確定事項
+
+1. **HomeScreen に「実機練習編」ボタンが実装済みかどうか**: 実装済みなら変更不要。未実装なら `goPractice()` を呼ぶボタンを相談ボード上に追加する（DasWorkspaceLayout の health rules ボタンと同程度の軽微変更）
+2. **dasRobotStore の practice 用初期化メソッド**: `loadMission` は Mission を引数に取るため Practice には合わない。`set()` 直接呼び出しで対応するか、`loadPracticeRobot()` を新設するかは実装時に判断可能
+3. **RobotView / PropertiesPane の props 対応**: 変更方針は「store 直接参照を props 優先 fallback に変更」だが、具体的な props インターフェースは実装時に確定してよい。既存の play モードでは props を渡さずに従来通り store から取得する fallback パターン
+4. **RecorderView に渡す Practice 用 MockApp**: レクチャーではシミュレーション実行をしないため、静的な widgets のみの簡易 MockApp で十分。空の `{ id: 'practice', windowTitle: '', widgets: [], timeline: [] }` でよいか、より意味のあるサンプルを入れるかは実装時に判断可能

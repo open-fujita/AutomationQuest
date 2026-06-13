@@ -167,6 +167,12 @@ interface DasRobotState {
   /** 実行結果をセット */
   setSim: (sim: DasSimResult) => void
   resetSim: () => void
+
+  /**
+   * 練習編用: DasRobot を直接セット（loadMission を通さず任意のロボットを差し込む）。
+   * 既存ミッション D1〜D5 は loadMission を使うので影響なし（後方互換 optional）。
+   */
+  loadCustom: (robot: DasRobot) => void
 }
 
 // ---- ストア実装 -----------------------------------------------
@@ -318,6 +324,10 @@ export const useDasRobotStore = create<DasRobotState>((set, get) => ({
   resetSim: () => {
     const currentRobot = get().robot
     set({ sim: EMPTY_DAS_SIM, robot: { ...currentRobot } })
+  },
+
+  loadCustom: (robot) => {
+    set({ robot, selectedStepId: null, selectedPath: [], sim: EMPTY_DAS_SIM, insertTarget: { kind: 'main' } })
   },
 }))
 

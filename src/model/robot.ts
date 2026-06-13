@@ -30,6 +30,17 @@ export type StepAction =
   | { type: 'TestValue'; toVariable: string; toAttribute: string; op: 'equals' | 'contains' | 'notEmpty'; value: string } // 値判定（TestTag）
   | { type: 'SaveFile'; fileName: string } // 仕上げ：ファイルに保存（WriteFile）
   | { type: 'ReturnValue'; variableName: string } // 値を返す（出力変数を呼び出し元へ・ReturnVariable）
+  /**
+   * ロボットを呼び出す（CallRobot）— 実機練習編 practice.ts で使う。
+   * 実機 DS の「ロボットを呼び出す」アクションステップに相当。
+   * プロパティペイン: アクション=「ロボットを呼び出す ▼」/ ロボット: <name> ▼ ＋「開く」ボタン
+   * シミュレータ未実装（UI 表示・練習シェルの props として参照されるのみ）。
+   */
+  | {
+      type: 'CallRobot'
+      /** 呼び出す緑ロボット名（例: 'sub'）。「開く」ボタンで対応タブへジャンプする。 */
+      robotName: string
+    }
 
 export type StepActionType = StepAction['type']
 
@@ -102,6 +113,7 @@ export const ACTION_LABELS: Record<StepActionType, string> = {
   TestValue: '値判定',
   SaveFile: '仕上げ（ファイルに保存）',
   ReturnValue: '値を返す',
+  CallRobot: 'ロボットを呼び出す',
 }
 
 /** ステップアクション種別 → stepAction クラス名（実機 DS 準拠） */
@@ -115,6 +127,7 @@ export const ACTION_STEP_CLASS: Record<StepActionType, string> = {
   TestValue: 'TestTag',
   SaveFile: 'WriteFile',
   ReturnValue: 'ReturnVariable',
+  CallRobot: 'CallRobotStep',
 }
 
 /** ステップアクション種別 → ステップ種別（kind） */
@@ -128,6 +141,7 @@ export const ACTION_KIND: Record<StepActionType, StepKind> = {
   TestValue: 'test',
   SaveFile: 'action',
   ReturnValue: 'action',
+  CallRobot: 'action',
 }
 
 let _idCounter = 0

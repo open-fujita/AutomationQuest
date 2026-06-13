@@ -19,6 +19,7 @@ const ACTION_ICON: Record<StepActionType, string> = {
   EnterText: '⌨',
   SaveFile: '💾',
   ReturnValue: '📤',
+  CallRobot: '🤖',
 }
 
 function iconFor(step: RobotStep): string {

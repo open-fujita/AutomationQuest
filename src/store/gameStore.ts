@@ -4,7 +4,7 @@ import { create } from 'zustand'
 export type GamePhase = 'briefing' | 'deduction' | 'build' | 'result'
 
 /** アプリ画面 */
-export type Screen = 'home' | 'play'
+export type Screen = 'home' | 'play' | 'practice'
 
 // ---- プレイヤー別ローカル保存（複数人が非同期で利用できる） -------------
 const PROFILES_KEY = 'ds-master-profiles'
@@ -63,6 +63,8 @@ interface GameState extends Progress {
   continueGame: () => void
   startFromBeginning: () => void
   startMission: (id: string) => void
+  /** 実機練習編（アクション別レクチャー）画面に遷移 */
+  goPractice: () => void
 
   // ミッション内
   setMission: (id: string) => void
@@ -115,6 +117,8 @@ export const useGameStore = create<GameState>()((set, get) => {
     },
 
     goHome: () => set({ screen: 'home' }),
+
+    goPractice: () => set({ screen: 'practice' }),
 
     continueGame: () => set({ screen: 'play', phase: 'briefing' }),
 

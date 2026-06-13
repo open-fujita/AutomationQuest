@@ -78,6 +78,8 @@ function renderHtml(node: React.ReactElement): string {
 }
 
 describe('白画面バグ再現: 緑ロボット D4（ForEach + body ExtractValue）', () => {
+  // NOTE: PracticeStudio 追加後にモジュール数が増え動的 import が重くなったため 10 秒に延長
+  // (変更前 ~3.2 秒、変更後 ~5.5 秒 が実測)
   it('D4 を実行後、DasWorkflowView が renderToString でクラッシュしないこと', async () => {
     const m = await loadModules()
 
@@ -125,7 +127,7 @@ describe('白画面バグ再現: 緑ロボット D4（ForEach + body ExtractValu
 
     expect(errWorkflow, errWorkflow?.message).toBeNull()
     expect(errState, errState?.message).toBeNull()
-  })
+  }, 10_000) // PracticeStudio 追加でモジュール増加のため延長
 
   it('D4 を実行後、DasWorkspaceLayout 全体（result フェーズ含む）が renderToString でクラッシュしないこと', async () => {
     const m = await loadModules()

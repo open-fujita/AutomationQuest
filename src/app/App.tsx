@@ -28,6 +28,9 @@ import { diagnose } from '../engine/healthCheck'
 // 緑ロボット（DAS）専用レイアウト
 import DasWorkspaceLayout from '../components/das/DasWorkspaceLayout'
 
+// 実機練習編（アクション別レクチャー）
+import PracticeStudio from '../components/practice/PracticeStudio'
+
 export default function App() {
   const screen = useGameStore((s) => s.screen)
   const goHome = useGameStore((s) => s.goHome)
@@ -97,6 +100,9 @@ export default function App() {
 
   // トップページ（プレイヤー選択・相談選択）
   if (screen === 'home') return <HomeScreen />
+
+  // 実機練習編（アクション別レクチャー）
+  if (screen === 'practice') return <PracticeStudio />
 
   // 緑ロボット（DAS）ミッション: DasWorkspaceLayout に委譲
   if (mission.robotType === 'das') {
