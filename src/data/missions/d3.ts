@@ -164,7 +164,7 @@ const MOCK_APP: MockApp = {
 
 export const D3: Mission = {
   id: 'd3',
-  index: 8,
+  index: 9,
   title: '不意の来客',
   client: { name: '橋本 購買部', dept: '購買部', portrait: '/img/portrait-purchasing.png' },
   briefing:

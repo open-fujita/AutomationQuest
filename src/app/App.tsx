@@ -28,6 +28,8 @@ import { diagnose } from '../engine/healthCheck'
 
 // 緑ロボット（DAS）専用レイアウト
 import DasWorkspaceLayout from '../components/das/DasWorkspaceLayout'
+// セットアップミッション（S1）専用ワークスペース
+import SetupWorkspace from '../components/setup/SetupWorkspace'
 
 export default function App() {
   const screen = useGameStore((s) => s.screen)
@@ -98,6 +100,11 @@ export default function App() {
 
   // トップページ（プレイヤー選択・相談選択）
   if (screen === 'home') return <HomeScreen />
+
+  // セットアップミッション（S1 など）: SetupWorkspace に委譲（robotType 分岐より優先）
+  if (mission.missionKind === 'setup') {
+    return <SetupWorkspace mission={mission} />
+  }
 
   // 緑ロボット（DAS）ミッション: DasWorkspaceLayout に委譲
   if (mission.robotType === 'das') {

@@ -134,7 +134,7 @@ const MOCK_APP: MockApp = {
 
 export const D4: Mission = {
   id: 'd4',
-  index: 9,
+  index: 10,
   title: '動くリストを数える',
   client: { name: '藤原 購買管理課', dept: '購買管理課', portrait: '/img/portrait-purchasing2.png' },
   briefing:

@@ -6,9 +6,11 @@ interface ToolbarProps {
   onOpenGlossary: () => void
   onOpenProgress: () => void
   onOpenHealthRules: () => void
+  /** セットアップミッションなど「実行」ボタンが不要な場合に true を渡すと非表示にする */
+  hideRun?: boolean
 }
 
-export default function Toolbar({ onRun, onHome, onOpenGlossary, onOpenProgress, onOpenHealthRules }: ToolbarProps) {
+export default function Toolbar({ onRun, onHome, onOpenGlossary, onOpenProgress, onOpenHealthRules, hideRun = false }: ToolbarProps) {
   const [saved, setSaved] = useState(false)
 
   const save = () => {
@@ -18,19 +20,23 @@ export default function Toolbar({ onRun, onHome, onOpenGlossary, onOpenProgress,
 
   return (
     <div className="flex shrink-0 items-center gap-2 border-b border-das-border bg-das-panelAlt px-3 py-1.5">
-      <button
-        onClick={onRun}
-        className="flex items-center gap-1.5 rounded bg-das-ok px-3 py-1 text-[13px] font-bold text-white shadow hover:brightness-110"
-      >
-        ▶ 実行
-      </button>
-      <button
-        onClick={onRun}
-        title="ステップ実行（このスライドではまとめて実行）"
-        className="rounded border border-das-border bg-das-bg px-2.5 py-1 text-[12px] text-das-text hover:border-das-accent2"
-      >
-        🐞 デバッグ
-      </button>
+      {!hideRun && (
+        <>
+          <button
+            onClick={onRun}
+            className="flex items-center gap-1.5 rounded bg-das-ok px-3 py-1 text-[13px] font-bold text-white shadow hover:brightness-110"
+          >
+            ▶ 実行
+          </button>
+          <button
+            onClick={onRun}
+            title="ステップ実行（このスライドではまとめて実行）"
+            className="rounded border border-das-border bg-das-bg px-2.5 py-1 text-[12px] text-das-text hover:border-das-accent2"
+          >
+            🐞 デバッグ
+          </button>
+        </>
+      )}
       <button
         onClick={save}
         className="rounded border border-das-border bg-das-bg px-2.5 py-1 text-[12px] text-das-text hover:border-das-accent2"
