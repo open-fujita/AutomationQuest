@@ -22,11 +22,14 @@ import Glossary from '../components/game/Glossary'
 import ProgressMap from '../components/game/ProgressMap'
 import HomeScreen from '../components/game/HomeScreen'
 import HealthRulesPanel from '../components/game/HealthRulesPanel'
+import QuestNavigator from '../components/game/QuestNavigator'
 
 import { diagnose } from '../engine/healthCheck'
 
 // 緑ロボット（DAS）専用レイアウト
 import DasWorkspaceLayout from '../components/das/DasWorkspaceLayout'
+// セットアップミッション（S1）専用ワークスペース
+import SetupWorkspace from '../components/setup/SetupWorkspace'
 
 // 実機練習編（アクション別レクチャー）
 import PracticeStudio from '../components/practice/PracticeStudio'
@@ -104,6 +107,11 @@ export default function App() {
   // 実機練習編（アクション別レクチャー）
   if (screen === 'practice') return <PracticeStudio />
 
+  // セットアップミッション（S1 など）: SetupWorkspace に委譲（robotType 分岐より優先）
+  if (mission.missionKind === 'setup') {
+    return <SetupWorkspace mission={mission} />
+  }
+
   // 緑ロボット（DAS）ミッション: DasWorkspaceLayout に委譲
   if (mission.robotType === 'das') {
     return <DasWorkspaceLayout mission={mission} />
@@ -120,6 +128,9 @@ export default function App() {
       />
 
       {showWorkspaceChrome && <MissionBar mission={mission} validation={validation} ran={sim.ran} />}
+      {phase === 'build' && (
+        <QuestNavigator outcomes={validation.outcomes} />
+      )}
 
       <main className="flex min-h-0 flex-1 bg-das-panelAlt">
         {/* 左: マイプロジェクト + パレット */}

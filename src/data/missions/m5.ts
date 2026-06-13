@@ -88,13 +88,13 @@ export const M5: Mission = {
   inputs: { ログイン情報: { ID: 'staff01', パスワード: '••••••' } },
   suggested: { typeName: '取引先', attributes: ['会社名', '担当者', '電話'], variableName: '取引先', variableRole: 'output' },
   checks: [
-    requireVariableRole('output', '出力変数（複合型）を作る', '「変数を追加」で役割「出力」の変数を作るか、推奨構成ボタンを使ってください。'),
-    requireLoadPageUrl(SITE.url, 'ログインページを読み込む', '「ページを読み込む」で URL を設定してください。'),
-    requireUsesInput('入力変数 ログイン情報 をテキスト入力で使う', 'ID 欄を右クリック →「テキストを入力」→ アクションで「入力変数から」を選び ログイン情報.ID を使ってください。'),
-    requireForEach('「要素の繰り返し」で各行をループする', '一覧の行を右クリック →「要素の繰り返し」を追加してください。'),
-    requireRoleRecordCount('output', 5, '出力変数に 5 件集まる', '出力変数（取引先）に 3 列を抽出し、5 件取れているか確認してください。'),
-    requireReturnsOutput('「値を返す」で出力変数を返す', 'パレットの「値を返す」を追加し、出力変数（取引先）を選んでください。'),
-    requireNoErrors('実行時にエラーが無い', 'ステータスビューのエラーを確認してください。'),
+    requireVariableRole('output', '出力変数（複合型）を作る', '🧩 「変数を追加」で役割「出力」の変数を作るか、推奨構成ボタンを使ってください。'),
+    requireLoadPageUrl(SITE.url, 'ログインページを読み込む', '📋 「ページを読み込む」で URL を設定してください。'),
+    requireUsesInput('入力変数 ログイン情報 をテキスト入力で使う', '🖱 ID 欄を右クリック →「テキストを入力」→ アクションで「入力変数から」を選び ログイン情報.ID を使ってください。'),
+    requireForEach('「テーブル行繰り返し」で各行をループする', '🖱 テーブルを右クリック →「ループ → テーブル行繰り返し → 最初の行を除外」を選んでください。'),
+    requireRoleRecordCount('output', 5, '出力変数に 5 件集まる', '▶ 出力変数（取引先）に 3 列を抽出し、5 件取れているか確認してください。'),
+    requireReturnsOutput('「値を返す」で出力変数を返す', '📋 パレットの「値を返す」を追加し、出力変数（取引先）を選んでください。'),
+    requireNoErrors('実行時にエラーが無い', '▶ ステータスビューのエラーを確認してください。'),
   ],
   reveal: (sim) => {
     let count = 0

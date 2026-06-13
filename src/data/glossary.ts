@@ -249,6 +249,27 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     en: 'CSS-like Selector',
     desc: 'ファインダーで要素を特定する記法。`elementName[attr="value"]` の形式で属性を指定する。演算子: `=`（完全一致）/ `^=`（前方一致）/ `$=`（後方一致）/ `*=`（部分一致）/ `>`（直接の子）/ `:nth-child(n)`（位置）。複数属性 AND: `button[visible="true"][name^="Save"]`。',
   },
+
+  // ---- セットアップ（S1）用語 ------------------------------------
+
+  deviceMapping: {
+    key: 'deviceMapping',
+    term: 'デバイスマッピング',
+    en: 'Device Mapping',
+    desc: 'Design Studio が DAS（Desktop Automation サービス）に接続するための設定。接続先ホスト名 / IP・コマンドポート（既定 49998）・トークンを指定する。「ファイル → 新しいオートメーション デバイス マッピング」から作成し、シングルユーザーモードではトークンが DAS 側と一致している必要がある。',
+  },
+  singleUser: {
+    key: 'singleUser',
+    term: 'シングルユーザー（モード）',
+    en: 'Single User Mode',
+    desc: 'DAS の接続方式のひとつ。Design Studio（開発者マシン）から DAS が動いているマシンに直接接続する。「Desktop Automation サービス」ダイアログで「☑ シングル ユーザー」をオンにし、「シングル ユーザー」タブのトークンを設定する。RoboServer 経由の本番実行では Management Console 接続になるため不要。',
+  },
+  dasToken: {
+    key: 'dasToken',
+    term: 'トークン（DAS 接続）',
+    en: 'Token',
+    desc: 'DS と DAS が互いを確認するための合言葉。DAS 側（「シングル ユーザー」タブ）と DS 側（デバイスマッピング）の両方に同じ文字列を設定する必要がある。不一致の場合は接続が拒否される。パスワードではなく識別子として使われる。例: DA01 / test / MyToken。',
+  },
   healthyRobot: {
     key: 'healthyRobot',
     term: '健康なロボット',

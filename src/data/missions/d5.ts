@@ -125,7 +125,7 @@ const MOCK_APP: MockApp = {
 
 export const D5: Mission = {
   id: 'd5',
-  index: 10,
+  index: 11,
   title: '要素を見失わない',
   client: { name: '中村 営業企画', dept: '営業企画部', portrait: '/img/portrait-sales.png' },
   briefing:
@@ -193,11 +193,11 @@ export const D5: Mission = {
   dasChecks: [
     requireSelectorMatch(
       '属性セレクタ（「[attr=...]」形式）でファインダーを設定している',
-      '「値を抽出」のファインダーに属性セレクタ（例: `tablecell[col="売上金額"]`）を設定してください。座標固定（`[x="..."][y="..."]`）は列が変わると壊れます。',
+      '⚙ 「値を抽出」のファインダーに属性セレクタ（例: `tablecell[col="売上金額"]`）を設定してください。座標固定（`[x="..."][y="..."]`）は列が変わると壊れます。',
     ),
     requireDasNoErrors(
       '実行時にエラーが無い',
-      'ステータスビューのエラーを確認してください。ファインダーのセレクタが正しい形式か確認してください（属性名のスペルミス等）。',
+      '▶ ステータスビューのエラーを確認してください。ファインダーのセレクタが正しい形式か確認してください（属性名のスペルミス等）。',
     ),
   ],
   reveal: (sim) => {

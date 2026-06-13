@@ -20,10 +20,12 @@ export default function HomeScreen() {
   const [showHealthRules, setShowHealthRules] = useState(false)
 
   const completedSet = new Set(completed)
-  // シリーズ内直列解放判定: 各シリーズ（ds / das）の先頭は常に解放、
-  // 2 件目以降は同一シリーズ内の直前ミッションをクリア済みの場合に解放。
-  // D1 は M1〜M5 の進捗と無関係にいつでもプレイ可能。
-  const seriesOf = (m: (typeof MISSIONS)[number]) => (m.robotType === 'das' ? 'das' : 'ds')
+  // シリーズ内直列解放判定:
+  //   ds シリーズ: M1〜M5（青ロボット）
+  //   das シリーズ: S1（セットアップ）+ D1〜D5（緑ロボット）
+  //   S1 は das シリーズの先頭（常に解放）、D1 は S1 クリア後に解放される。
+  const seriesOf = (m: (typeof MISSIONS)[number]) =>
+    m.robotType === 'das' || m.missionKind === 'setup' ? 'das' : 'ds'
   const isUnlocked = (m: (typeof MISSIONS)[number]) => {
     const series = MISSIONS.filter((x) => seriesOf(x) === seriesOf(m))
     const idx = series.indexOf(m)
@@ -138,8 +140,8 @@ export default function HomeScreen() {
 
             <div className="mb-2 text-[12px] font-semibold text-ds-textDim">相談ボード</div>
 
-            {/* 青ロボット編（M1〜M5）シリーズ */}
-            {MISSIONS.filter((m) => !m.robotType || m.robotType === 'ds').length > 0 && (
+            {/* 青ロボット編（M1〜M5）シリーズ — setupミッションは除外 */}
+            {MISSIONS.filter((m) => (!m.robotType || m.robotType === 'ds') && m.missionKind !== 'setup').length > 0 && (
               <div className="mb-3">
                 <div className="mb-1.5 flex items-center gap-2">
                   <span className="inline-block rounded bg-ds-accent2/20 px-2 py-0.5 text-[11px] text-ds-accent2">
@@ -147,7 +149,7 @@ export default function HomeScreen() {
                   </span>
                 </div>
                 <div className="space-y-1.5">
-                  {MISSIONS.filter((m) => !m.robotType || m.robotType === 'ds').map((m) => {
+                  {MISSIONS.filter((m) => (!m.robotType || m.robotType === 'ds') && m.missionKind !== 'setup').map((m) => {
                     const cleared = completedSet.has(m.id)
                     const unlocked = isUnlocked(m)
                     return (
@@ -177,8 +179,8 @@ export default function HomeScreen() {
               </div>
             )}
 
-            {/* 緑ロボット編（D1〜D5）シリーズ */}
-            {MISSIONS.filter((m) => m.robotType === 'das').length > 0 && (
+            {/* 緑ロボット編（S1 セットアップ + D1〜D5）シリーズ */}
+            {MISSIONS.filter((m) => m.robotType === 'das' || m.missionKind === 'setup').length > 0 && (
               <div>
                 <div className="mb-1.5 flex items-center gap-2">
                   <span className="inline-block rounded bg-green-500/20 px-2 py-0.5 text-[11px] text-green-300">
@@ -186,9 +188,10 @@ export default function HomeScreen() {
                   </span>
                 </div>
                 <div className="space-y-1.5">
-                  {MISSIONS.filter((m) => m.robotType === 'das').map((m) => {
+                  {MISSIONS.filter((m) => m.robotType === 'das' || m.missionKind === 'setup').map((m) => {
                     const cleared = completedSet.has(m.id)
                     const unlocked = isUnlocked(m)
+                    const isSetup = m.missionKind === 'setup'
                     return (
                       <button
                         key={m.id}
@@ -199,16 +202,24 @@ export default function HomeScreen() {
                           unlocked ? 'border-green-500/30 bg-ds-bg/40 hover:border-green-400/60' : 'cursor-not-allowed border-ds-border/40 opacity-50',
                         ].join(' ')}
                       >
-                        <span className="text-[18px]">{cleared ? '✅' : unlocked ? '🗂' : '🔒'}</span>
+                        <span className="text-[18px]">
+                          {cleared ? '✅' : unlocked ? (isSetup ? '⚙' : '🗂') : '🔒'}
+                        </span>
                         <span className="flex-1">
                           <span className="block text-[13px] font-semibold">
-                            相談 #{m.index}「{m.title}」
+                            {isSetup && (
+                              <span className="mr-1.5 rounded bg-green-500/20 px-1.5 py-0.5 text-[10px] font-bold text-green-300">
+                                セットアップ
+                              </span>
+                            )}
+                            {isSetup ? m.title : `相談 #${m.index}「${m.title}」`}
                           </span>
                           <span className="block text-[11px] text-ds-textDim">
-                            {m.client.dept}・{m.client.name} / 手作業 {m.manualMinutes} 分
+                            {m.client.dept}・{m.client.name}
+                            {!isSetup && ` / 手作業 ${m.manualMinutes} 分`}
                           </span>
                         </span>
-                        {cleared && <span className="text-[11px] text-ds-ok">解決済み</span>}
+                        {cleared && <span className="text-[11px] text-ds-ok">完了済み</span>}
                       </button>
                     )
                   })}
@@ -240,8 +251,8 @@ export default function HomeScreen() {
               </button>
             </div>
 
-            {/* 両シリーズが未追加の場合のフォールバック（D1〜D5未定義時） */}
-            {MISSIONS.filter((m) => m.robotType === 'das').length === 0 &&
+            {/* 両シリーズが未追加の場合のフォールバック（S1/D1〜D5未定義時） */}
+            {MISSIONS.filter((m) => m.robotType === 'das' || m.missionKind === 'setup').length === 0 &&
               MISSIONS.filter((m) => !m.robotType || m.robotType === 'ds').length === 0 && (
                 <div className="space-y-2">
                   {MISSIONS.map((m) => {
