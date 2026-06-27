@@ -85,7 +85,7 @@ const MOCK_APP: MockApp = {
 
 export const D1: Mission = {
   id: 'd1',
-  index: 7, // S1(6) の次
+  index: 8, // S1(7) の次
   title: 'はじめての緑ロボット',
   client: { name: '西村 倉庫管理部', dept: '倉庫管理部', portrait: '/img/portrait-warehouse.png' },
   briefing:

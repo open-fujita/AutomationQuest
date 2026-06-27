@@ -14,7 +14,7 @@ import { buildSetupChecks } from '../../engine/setupChecks'
 
 export const S1: Mission = {
   id: 's1',
-  index: 6, // M5(5) の次、D1(7) の直前
+  index: 7, // M6(6) の次、D1(8) の直前
   title: 'セットアップ: DAS につなぐ',
   missionKind: 'setup',
 
