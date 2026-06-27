@@ -126,10 +126,23 @@ function DasDialog({
                 value={hostName}
                 onChange={(e) => onHostNameChange(e.target.value)}
                 className="flex-1 rounded-sm border border-[#aaa] bg-white px-2 py-0.5 text-[13px] font-mono outline-none focus:border-[#4a90d9]"
-                placeholder="XXXXXXXX"
-                aria-label="ホスト名（コンピュータ名または IP アドレス）"
+                placeholder="例: DESKTOP-A1B2C3"
+                aria-label="ホスト名（このコンピュータのコンピュータ名）"
                 autoFocus
               />
+            </div>
+            {/* ホスト名のワンポイントガイド */}
+            <div className="ml-[118px] rounded-sm border border-[#cfe0f5] bg-[#eaf2fc] px-2 py-1.5 text-[11px] leading-relaxed text-[#2a4a6b]">
+              <p>
+                💡 ここには <strong>このコンピュータのコンピュータ名（PC 名）</strong> を入れます。
+                自分の PC 名は <kbd className="rounded border border-[#9bb8d8] bg-white px-1 font-mono">⊞ Win</kbd>+
+                <kbd className="rounded border border-[#9bb8d8] bg-white px-1 font-mono">R</kbd> →「<code className="font-mono">cmd</code>」→
+                <code className="font-mono"> hostname</code> で確認できます。
+              </p>
+              <p className="mt-0.5 text-[#5a6b7b]">
+                （別法: 設定 → システム → 詳細情報 →「デバイス名」/ エクスプローラーで「PC」を右クリック →「プロパティ」）。
+                この練習では <strong>任意の名前で OK</strong> です。
+              </p>
             </div>
             {/* コマンドポート */}
             <div className="flex items-center gap-2">
@@ -427,10 +440,14 @@ function MappingDialog({
               value={host}
               onChange={(e) => onHostChange(e.target.value)}
               className="flex-1 rounded border border-das-border bg-das-bg px-2 py-1 font-mono text-das-text outline-none focus:border-das-accent2"
-              placeholder="localhost"
+              placeholder="例: DESKTOP-A1B2C3"
               aria-required="true"
             />
           </div>
+          {/* ホスト名の整合ヒント */}
+          <p className="ml-[112px] text-[11px] leading-relaxed text-das-textDim">
+            💡 DAS 設定で入れた <strong>コンピュータ名と同じ値</strong> を入力します（同じ PC 内なら <code className="font-mono">localhost</code> でも可）。
+          </p>
           {/* コマンドポート */}
           <div className="flex items-center gap-3">
             <label className="w-[100px] shrink-0 text-right text-das-textDim" htmlFor="mapping-port">
