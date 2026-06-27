@@ -33,7 +33,7 @@ export default function HealthRulesPanel({ onClose }: Props) {
       onClose={onClose}
       maxWidth="max-w-xl"
     >
-      <p className="mb-4 text-[12px] text-ds-textDim">
+      <p className="mb-4 text-[12px]" style={{ color: '#6B6B6B' }}>
         保守しやすく、壊れにくいロボットを設計するための原則です。ミッションをクリアするたびに「体験済み」になります。
       </p>
 
@@ -43,32 +43,32 @@ export default function HealthRulesPanel({ onClose }: Props) {
           return (
             <li
               key={rule.id}
-              className={[
-                'rounded-lg border p-3',
+              className="rounded-xl p-3"
+              style={
                 experienced
-                  ? 'border-ds-ok/40 bg-ds-ok/5'
-                  : 'border-ds-border bg-ds-bg/40',
-              ].join(' ')}
+                  ? { background: '#E9F6EF', border: '1px solid rgba(46,158,107,.35)' }
+                  : { background: '#FAFAF8', border: '1px solid #ECEBE7' }
+              }
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-start gap-2">
                   {/* 条番号バッジ */}
                   <span
-                    className={[
-                      'mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold',
+                    className="mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold"
+                    style={
                       experienced
-                        ? 'bg-ds-ok/20 text-ds-ok'
-                        : 'bg-ds-panelAlt text-ds-textDim',
-                    ].join(' ')}
+                        ? { background: 'rgba(46,158,107,.18)', color: '#2E9E6B' }
+                        : { background: '#F2F1EE', color: '#6B6B6B' }
+                    }
                     aria-label={`第 ${rule.number} 条`}
                   >
                     第{rule.number}条
                   </span>
                   <div>
-                    <div className="text-[13px] font-semibold text-ds-text">
+                    <div className="text-[13px] font-semibold" style={{ color: '#1A1A1A' }}>
                       {rule.title}
                     </div>
-                    <div className="mt-0.5 text-[12px] leading-relaxed text-ds-textDim">
+                    <div className="mt-0.5 text-[12px] leading-relaxed" style={{ color: '#6B6B6B' }}>
                       {rule.description}
                     </div>
                   </div>
@@ -77,7 +77,8 @@ export default function HealthRulesPanel({ onClose }: Props) {
                 {/* 体験済みバッジ */}
                 {experienced && (
                   <span
-                    className="shrink-0 rounded-full bg-ds-ok/20 px-2 py-0.5 text-[10px] font-semibold text-ds-ok"
+                    className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                    style={{ background: 'rgba(46,158,107,.18)', color: '#2E9E6B' }}
                     aria-label="体験済み"
                   >
                     体験済み ✓
@@ -90,13 +91,14 @@ export default function HealthRulesPanel({ onClose }: Props) {
       </ol>
 
       {/* 出典 */}
-      <div className="mt-5 border-t border-ds-border pt-3 text-[11px] text-ds-textDim">
+      <div className="mt-5 pt-3 text-[11px]" style={{ borderTop: '1px solid #ECEBE7', color: '#9A9A9A' }}>
         出典:{' '}
         <a
           href={HEALTH_RULES_SOURCE_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-ds-accent2 underline hover:brightness-125"
+          className="underline"
+          style={{ color: '#CC8C4B' }}
         >
           {HEALTH_RULES_SOURCE_LABEL}
         </a>
