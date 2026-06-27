@@ -63,6 +63,12 @@ body {
   background-color: rgb(37 99 235 / 0.12) !important;
 }
 
+/* ---- すごろくMAP（OfficeMapHome）アニメーション ---- */
+@keyframes qFloat { 0%,100%{ transform: translateY(0); } 50%{ transform: translateY(-7px); } }
+@keyframes qBob { 0%,100%{ transform: translateY(0) rotate(-1.5deg); } 50%{ transform: translateY(-3px) rotate(1.5deg); } }
+@keyframes qGlow { 0%,100%{ opacity:.4; } 50%{ opacity:1; } }
+@keyframes qFade { from{ opacity:0; } to{ opacity:1; } }
+
 /* 細いスクロールバー（ライトテーマ用） */
 *::-webkit-scrollbar {
   width: 9px;
