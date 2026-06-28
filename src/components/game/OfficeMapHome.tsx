@@ -10,7 +10,7 @@
 // - XP/レベル/スタンプは completedMissions × missionMapMeta.xp から派生。
 // ============================================================
 
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { useGameStore } from '../../store/gameStore'
 import { MISSIONS } from '../../data/missions'
 import { getMapMeta, XP_PER_LEVEL } from '../../data/missionMapMeta'
@@ -32,10 +32,15 @@ const C = {
 }
 const OX = 600
 const OY = 235
-const CANVAS_W = 1300
-const CANVAS_H = 940
-/** フロア全体（SVG＋カード一括）の表示縮尺 */
-const SCALE = 0.88
+/** フロア全体の表示縮尺（上限。実際はコンテナ幅に追従して縮小） */
+const MAX_SCALE = 1.0
+const FALLBACK_AVAIL_W = 1080
+// ---- フロア配置定数（傾きと間隔を制御） ----
+const Z_BASE = 16
+const Z_STEP = 14
+const ROW_Y_START = 560
+const ROW_GAP = 160
+const FIT_PAD = 16
 
 type Pt = [number, number]
 
@@ -84,9 +89,11 @@ function buildStages(): Stage[] {
 }
 
 // ---- DEPTS ← client.dept でグルーピング + 階段状アイソメ座標を手続き生成 ----
-const ROWS_Y = [560, 350, 140, -70]
 const COLS_X = [40, 290, 540]
-function buildDepts(stages: Stage[]): { depts: Dept[]; goal: [number, number, number] } {
+function rowY(row: number): number {
+  return ROW_Y_START - row * ROW_GAP
+}
+function buildDepts(stages: Stage[]): { depts: Dept[]; goal: [number, number, number]; start: [number, number, number] } {
   // 部署ごとに最小 index 順で並べる（カリキュラム順）
   const order: string[] = []
   const map = new Map<string, Stage[]>()
@@ -102,8 +109,8 @@ function buildDepts(stages: Stage[]): { depts: Dept[]; goal: [number, number, nu
     const row = Math.floor(i / 3)
     const col = i % 3
     const x = row % 2 === 0 ? COLS_X[col]! : COLS_X[2 - col]!
-    const y = ROWS_Y[row] ?? -70 - (row - 3) * 210
-    const z = 16 + i * 22
+    const y = rowY(row)
+    const z = Z_BASE + i * Z_STEP
     return {
       key: 'd' + i,
       dept,
@@ -112,14 +119,63 @@ function buildDepts(stages: Stage[]): { depts: Dept[]; goal: [number, number, nu
       pos: [x, y, z],
     }
   })
-  // ゴール: スネーク経路の「次のマス」に置く（最上段の先）
+  // ゴール: 右上奥（対角線の終点）。高さは部署数に連動。
   const n = order.length
-  const grow = Math.floor(n / 3)
-  const gcol = n % 3
-  const gx = grow % 2 === 0 ? COLS_X[gcol]! : COLS_X[2 - gcol]!
-  const gy = ROWS_Y[grow] ?? -70 - (grow - 3) * 210
-  const goal: [number, number, number] = [gx + 15, gy + 15, 16 + n * 22]
-  return { depts, goal }
+  const goal: [number, number, number] = [220, -210, Z_BASE + n * Z_STEP]
+  // スタート: 左下前景（対角線の始点）
+  const start: [number, number, number] = [20, 690, 0]
+  return { depts, goal, start }
+}
+
+// ---- 描画バウンディングボックス → 平行移動＋フィットサイズ算出 ----
+function computeFit(
+  depts: Dept[],
+  goal: [number, number, number],
+  startPos: [number, number, number],
+  mascotBase: [number, number, number],
+): { dx: number; dy: number; fitW: number; fitH: number } {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+  function ext(x: number, y: number) {
+    if (x < minX) minX = x; if (x > maxX) maxX = x
+    if (y < minY) minY = y; if (y > maxY) maxY = y
+  }
+  // 部署建物 8 コーナー + デスクカード矩形
+  for (const d of depts) {
+    const [px, py, pz] = d.pos
+    for (const cx of [px, px + 120]) for (const cy of [py, py + 120]) for (const cz of [0, pz]) {
+      const p = iso(cx, cy, cz); ext(p[0], p[1])
+    }
+    const np = iso(px + 58, py + 8, pz + 50)
+    const cardH = 38 + d.stageIds.length * 27
+    ext(np[0] - 85, np[1] - cardH - 10)
+    ext(np[0] + 85, np[1])
+  }
+  // ゴール建物 (90x90)
+  const [gx, gy, gz] = goal
+  for (const cx of [gx, gx + 90]) for (const cy of [gy, gy + 90]) for (const cz of [0, gz]) {
+    const p = iso(cx, cy, cz); ext(p[0], p[1])
+  }
+  const tp = iso(gx + 45, gy + 45, gz + 22)
+  ext(tp[0] - 2, tp[1] - 20); ext(tp[0] + 18, tp[1])
+  // スタートタイル (90x90, z=0)
+  const [sx, sy] = startPos
+  for (const cx of [sx, sx + 90]) for (const cy of [sy, sy + 90]) {
+    const p = iso(cx, cy, 0); ext(p[0], p[1])
+  }
+  // スタートラベル矩形
+  const slp = iso(sx + 45, sy + 45, 10)
+  ext(slp[0] - 50, slp[1] - 40); ext(slp[0] + 50, slp[1] + 10)
+  // マスコット
+  const mpt = iso(mascotBase[0] + 46, mascotBase[1] + 50, mascotBase[2])
+  ext(mpt[0] - 30, mpt[1] - 90); ext(mpt[0] + 30, mpt[1] + 36)
+  // フィット
+  const dx = FIT_PAD - minX
+  const dy = FIT_PAD - minY
+  return {
+    dx, dy,
+    fitW: Math.ceil(maxX - minX + 2 * FIT_PAD),
+    fitH: Math.ceil(maxY - minY + 2 * FIT_PAD),
+  }
 }
 
 // ---- 色ユーティリティ（原典） ----
@@ -189,9 +245,24 @@ export default function OfficeMapHome() {
 
   const [selId, setSelId] = useState<string | null>(null)
   const [show10, setShow10] = useState(false)
+  const [showGuide, setShowGuide] = useState(false)
+
+  // ---- adaptive scale: コンテナ幅に追従して SCALE を動的算出 ----
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+  const [availW, setAvailW] = useState(FALLBACK_AVAIL_W)
+  const measureWidth = useCallback(() => {
+    if (mapContainerRef.current) setAvailW(mapContainerRef.current.clientWidth)
+  }, [])
+  useEffect(() => {
+    measureWidth()
+    if (typeof ResizeObserver === 'undefined') return // jsdom 等 SSR ガード
+    const ro = new ResizeObserver(measureWidth)
+    if (mapContainerRef.current) ro.observe(mapContainerRef.current)
+    return () => ro.disconnect()
+  }, [measureWidth])
 
   const stages = useMemo(() => buildStages(), [])
-  const { depts, goal } = useMemo(() => buildDepts(stages), [stages])
+  const { depts, goal, start } = useMemo(() => buildDepts(stages), [stages])
   const completedSet = useMemo(() => new Set(completed), [completed])
 
   const stageById = (id: string) => stages.find((s) => s.id === id)
@@ -319,15 +390,28 @@ export default function OfficeMapHome() {
     )
     gel.push(React.createElement('rect', { key: gk + 'po', x: tp[0] - 1, y: tp[1] - 18, width: 2, height: 18, fill: '#8a8a93' }))
     prims.push({ depth: G[0] + G[1], el: gel })
+    // スタートタイル
+    const S = start
+    const sk = 'start_'
+    const sel2: React.ReactElement[] = []
+    sel2.push(...box(S[0], S[1], 0, 90, 90, 8, '#D9EFE2', sk))
+    sel2.push(...box(S[0] + 25, S[1] + 25, 8, 40, 40, 4, '#A8D5BA', sk + 'b'))
+    const stp = iso(S[0] + 45, S[1] + 45, 14)
+    sel2.push(React.createElement('text', {
+      key: sk + 'txt', x: stp[0], y: stp[1], textAnchor: 'middle', fill: '#2E9E6B',
+      style: { fontSize: 11, fontWeight: 800, fontFamily: 'Montserrat,sans-serif', letterSpacing: '.08em' },
+    }, 'START'))
+    prims.push({ depth: S[0] + S[1], el: sel2 })
     prims.sort((a, b) => a.depth - b.depth)
     const children: React.ReactElement[] = []
     prims.forEach((pr) => pr.el.forEach((e) => children.push(e)))
-    // 登攀ルート（破線・部署→部署→ゴール）
-    let dPath = ''
-    depts.forEach((dep, i) => {
+    // 登攀ルート（破線・スタート→部署→部署→ゴール）
+    const sc = iso(S[0] + 45, S[1] + 45, 5)
+    let dPath = 'M' + sc[0].toFixed(1) + ' ' + sc[1].toFixed(1) + ' '
+    depts.forEach((dep) => {
       const p = dep.pos
       const c = iso(p[0] + 60, p[1] + 60, p[2] + 1)
-      dPath += (i === 0 ? 'M' : 'L') + c[0].toFixed(1) + ' ' + c[1].toFixed(1) + ' '
+      dPath += 'L' + c[0].toFixed(1) + ' ' + c[1].toFixed(1) + ' '
     })
     const gc = iso(G[0] + 45, G[1] + 45, G[2] + 1)
     dPath += 'L' + gc[0].toFixed(1) + ' ' + gc[1].toFixed(1)
@@ -349,8 +433,8 @@ export default function OfficeMapHome() {
       .forEach((w) => w.el.forEach((e) => children.push(e)))
     return React.createElement(
       'svg',
-      { width: CANVAS_W, height: CANVAS_H, viewBox: `0 0 ${CANVAS_W} ${CANVAS_H}`, style: { position: 'absolute', inset: 0, overflow: 'visible' } },
-      children,
+      { width: fit.fitW, height: fit.fitH, viewBox: `0 0 ${fit.fitW} ${fit.fitH}`, style: { position: 'absolute', inset: 0, overflow: 'visible' } },
+      React.createElement('g', { transform: `translate(${fit.dx},${fit.dy})` }, children),
     )
   }
 
@@ -384,8 +468,8 @@ export default function OfficeMapHome() {
         key={d.key}
         style={{
           position: 'absolute',
-          left: np[0] - W / 2,
-          top: np[1] - cardH,
+          left: np[0] - W / 2 + fit.dx,
+          top: np[1] - cardH + fit.dy,
           width: W,
           zIndex: Math.round(p[0] + p[1]) + 20,
           animation: hasRec ? 'qBob 4.5s ease-in-out infinite' : undefined,
@@ -484,6 +568,8 @@ export default function OfficeMapHome() {
   // ---- マスコット位置 ----
   const ma = rec ? posOf(rec.id) : goal
   const mp = iso(ma[0] + 46, ma[1] + 50, ma[2])
+  const fit = computeFit(depts, goal, start, ma)
+  const scale = Math.min(MAX_SCALE, availW / fit.fitW)
 
   // ---- 詳細モーダル用データ ----
   const sel = selId ? stageById(selId) : null
@@ -622,13 +708,28 @@ export default function OfficeMapHome() {
             </div>
           </div>
 
-          <div style={{ overflowX: 'auto' }}>
-            <div style={{ width: CANVAS_W * SCALE, height: CANVAS_H * SCALE, margin: '0 auto' }}>
-              <div style={{ position: 'relative', width: CANVAS_W, height: CANVAS_H, transform: `scale(${SCALE})`, transformOrigin: 'top left', background: 'radial-gradient(120% 90% at 50% 30%, #FBF7F0 0%, #F3EEF7 70%, #ECE6F2 100%)', borderRadius: 18 }}>
+          <div ref={mapContainerRef}>
+            <div style={{ width: fit.fitW * scale, height: fit.fitH * scale, margin: '0 auto' }}>
+              <div style={{ position: 'relative', width: fit.fitW, height: fit.fitH, transform: `scale(${scale})`, transformOrigin: 'top left', background: 'radial-gradient(120% 90% at 50% 30%, #FBF7F0 0%, #F3EEF7 70%, #ECE6F2 100%)', borderRadius: 18 }}>
               {scene()}
               {depts.map((d) => deptCard(d))}
+              {/* スタートラベル */}
+              {(() => {
+                const sp = iso(start[0] + 45, start[1] + 45, 10)
+                return (
+                  <div
+                    onClick={() => setShowGuide(true)}
+                    style={{ position: 'absolute', left: sp[0] - 48 + fit.dx, top: sp[1] - 18 + fit.dy, width: 96, textAlign: 'center', cursor: 'pointer', zIndex: 20 }}
+                  >
+                    <div style={{ display: 'inline-block', background: '#fff', border: '1.5px solid #A8D5BA', borderRadius: 10, padding: '6px 14px', boxShadow: '0 4px 12px rgba(46,158,107,.18)' }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, color: '#2E9E6B', fontFamily: 'Montserrat,sans-serif', letterSpacing: '.08em' }}>START</div>
+                      <div style={{ fontSize: 9, fontWeight: 600, color: '#6B6B6B', marginTop: 2 }}>進め方ガイド</div>
+                    </div>
+                  </div>
+                )
+              })()}
               {/* マスコット */}
-              <div style={{ position: 'absolute', left: mp[0] - 29, top: mp[1] - 88, width: 58, textAlign: 'center', zIndex: 50, transition: 'left .7s cubic-bezier(.22,.61,.36,1), top .7s cubic-bezier(.22,.61,.36,1)' }}>
+              <div style={{ position: 'absolute', left: mp[0] - 29 + fit.dx, top: mp[1] - 88 + fit.dy, width: 58, textAlign: 'center', zIndex: 50, transition: 'left .7s cubic-bezier(.22,.61,.36,1), top .7s cubic-bezier(.22,.61,.36,1)' }}>
                 <img src={MASCOT} alt="" style={{ width: 58, height: 58, borderRadius: '50%', boxShadow: '0 12px 22px rgba(26,26,26,.22)', animation: 'qFloat 2.6s ease-in-out infinite' }} />
                 <div style={{ marginTop: 3, display: 'inline-block', background: '#1A1A1A', color: '#fff', fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 999, whiteSpace: 'nowrap' }}>
                   {rec ? 'いまここ' : 'GOAL！'}
@@ -716,6 +817,55 @@ export default function OfficeMapHome() {
                   <span style={{ fontSize: 13.5, color: '#3D3D3D', lineHeight: 1.6 }}>{r.title}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== 進め方ガイドモーダル ===== */}
+      {showGuide && (
+        <div onClick={() => setShowGuide(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,26,.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, zIndex: 2000, animation: 'qFade .15s ease' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: 520, maxWidth: '100%', maxHeight: '86vh', overflowY: 'auto', background: '#fff', borderRadius: 20, boxShadow: '0 30px 70px rgba(26,26,26,.32)' }}>
+            <div style={{ padding: '22px 26px 18px', display: 'flex', alignItems: 'center', gap: 13, borderBottom: '1px solid #F1F0EC', position: 'sticky', top: 0, background: '#fff' }}>
+              <img src={MASCOT} alt="" style={{ width: 46, height: 46, borderRadius: '50%' }} />
+              <div>
+                <div style={{ font: '800 10px/1 Montserrat,sans-serif', letterSpacing: '.14em', color: '#2E9E6B' }}>HOW TO PLAY</div>
+                <div style={{ marginTop: 5, fontSize: 18, fontWeight: 700 }}>クエストの進め方</div>
+              </div>
+              <div onClick={() => setShowGuide(false)} style={{ marginLeft: 'auto', width: 32, height: 32, borderRadius: '50%', background: '#F2F1EE', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#6B6B6B' }}>
+                ✕
+              </div>
+            </div>
+            <div style={{ padding: '18px 26px 26px' }}>
+              <div style={{ fontSize: 13.5, color: '#3D3D3D', lineHeight: 1.8, marginBottom: 18 }}>
+                すごろくの各デスクは 1 つの相談（クエスト）です。スタートから順にデスクをめぐり、すべての相談を解決して GOAL を目指しましょう。
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+                {[
+                  { no: 1, label: '相談を受ける', desc: '相談票で困りごとを把握し、どう解決するか見立てクイズに挑戦' },
+                  { no: 2, label: '見立てる', desc: 'クイズでどう自動化するか考える。正解すると次へ進める' },
+                  { no: 3, label: '組み立てる', desc: 'ロボットを実際に作る。STEP 表示に従って操作しよう' },
+                  { no: 4, label: '実行して確認', desc: '実行ボタンを押して結果を確かめたらクリア！' },
+                ].map((s) => (
+                  <div key={s.no} style={{ display: 'flex', alignItems: 'center', gap: 13, background: '#FAFAF8', border: '1px solid #ECEBE7', borderRadius: 12, padding: '11px 15px' }}>
+                    <span style={{ width: 30, height: 30, borderRadius: 9, background: 'linear-gradient(135deg,#2E9E6B,#1f7d52)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', font: '800 13px/1 Montserrat,sans-serif', flexShrink: 0 }}>
+                      {s.no}
+                    </span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#1A1A1A' }}>{s.label}</div>
+                      <div style={{ fontSize: 11.5, color: '#6B6B6B', marginTop: 2, lineHeight: 1.5 }}>{s.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ background: '#FBF1E6', border: '1px solid #F0C79A', borderRadius: 12, padding: '14px 16px' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#CC8C4B', marginBottom: 8 }}>最重要のコツ</div>
+                <div style={{ fontSize: 13, color: '#5b4b2a', lineHeight: 1.8 }}>
+                  画面上部の <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', border: '1px solid #E6E5E1', borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>
+                    <span style={{ color: '#2E9E6B' }}>STEP 1/3</span> <span style={{ color: '#9A9A9A' }}>...</span> <span style={{ color: '#B7B6B1' }}>2/3</span>
+                  </span> 表示を見ながら進めましょう。今やるべきことが 1 つずつ示され、その通り操作すれば迷いません。1 ステップ終えるごとにチェックが付きます。
+                </div>
+              </div>
             </div>
           </div>
         </div>
