@@ -32,7 +32,7 @@ export const M1: Mission = {
   id: 'm1',
   index: 1,
   title: 'はじめての自動化',
-  client: { name: '神崎 経理部主任', dept: '経理部', portrait: '/img/portrait-keiri.png' },
+  client: { name: '及川 広報部', dept: '広報部' },
   briefing:
     '毎朝、社内ポータルのお知らせ見出しを手でコピーして全社メールに貼ってるんです…。たった1行なのに、確認して開いてコピーして、で毎回15分。これ、ロボットに任せられませんか？',
   manualMinutes: 15,
@@ -67,16 +67,16 @@ export const M1: Mission = {
     requireLoadPageUrl(
       SITE.url,
       '「ページを読み込む」でお知らせページを開く',
-      'まず「ページを読み込む」ステップを追加し、URL にお知らせページ（' + SITE.url + '）を設定してください。',
+      '📋 まず「ページを読み込む」ステップを追加し、URL にお知らせページ（' + SITE.url + '）を設定してください。',
     ),
     requireExtractInto(
       'お知らせ',
       '見出し',
       'お知らせ見出しを 変数 お知らせ.見出し に抽出する',
-      'ブラウザビューでお知らせ見出しを右クリック →「抽出」し、抽出先を お知らせ.見出し にしてください。',
+      '🖱 ブラウザビューでお知らせ見出しを右クリック →「抽出」し、抽出先を お知らせ.見出し にしてください。',
     ),
-    requireRecordCount('お知らせ', 1, '実行して 1 件取り込めている', '［実行］を押して、見出しが取り込めるか確かめましょう。'),
-    requireNoErrors('実行時にエラーが無い', 'ステータスビューのエラーを確認し、ステップの順番や設定を見直してください。'),
+    requireRecordCount('お知らせ', 1, '実行して 1 件取り込めている', '▶ ［実行］を押して、見出しが取り込めるか確かめましょう。'),
+    requireNoErrors('実行時にエラーが無い', '▶ ステータスビューのエラーを確認し、ステップの順番や設定を見直してください。'),
   ],
   reveal: (sim) => {
     const headline = sim.data['お知らせ']?.[0]?.['見出し'] ?? ''
@@ -86,4 +86,5 @@ export const M1: Mission = {
     )
   },
   glossary: ['robot', 'step', 'actionStep', 'loadPage', 'extract', 'variable', 'type', 'dataState', 'endStep'],
+  healthFocus: [1, 3],
 }

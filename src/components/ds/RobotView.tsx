@@ -37,7 +37,8 @@ export default function RobotView() {
   )
 
   const edges = useMemo<Edge[]>(() => {
-    const marker = { type: MarkerType.ArrowClosed, color: '#6b75a0', width: 16, height: 16 }
+    // ライトテーマ: 薄グレー地に見える中濃グレー
+    const marker = { type: MarkerType.ArrowClosed, color: '#6b7280', width: 16, height: 16 }
     if (isGraph) {
       return (robot.edges ?? []).map((e, i) => ({
         id: `e-${e.from}-${e.to}-${i}`,
@@ -81,8 +82,9 @@ export default function RobotView() {
           fitViewOptions={{ padding: 0.3, maxZoom: 1.1 }}
           proOptions={{ hideAttribution: true }}
         >
-          <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="#3b425e" />
-          <Controls showInteractive={false} className="!bg-ds-panelAlt !border-ds-border" />
+          {/* ライトテーマ: 白いキャンバスに薄グレーのドット */}
+          <Background variant={BackgroundVariant.Dots} gap={18} size={1} color="#d0d4dc" />
+          <Controls showInteractive={false} className="!bg-das-panelAlt !border-das-border" />
         </ReactFlow>
       </div>
     </PanelFrame>

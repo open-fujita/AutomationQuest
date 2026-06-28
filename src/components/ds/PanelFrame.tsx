@@ -14,11 +14,11 @@ interface PanelFrameProps {
 /** Design Studio 風のパネル枠（タイトルバー付き） */
 export default function PanelFrame({ title, hint, actions, children, scroll = true, className }: PanelFrameProps) {
   return (
-    <section className={['flex h-full min-h-0 flex-col overflow-hidden bg-ds-panel', className ?? ''].join(' ')}>
-      <header className="flex shrink-0 items-center justify-between border-b border-ds-border bg-ds-panelAlt px-3 py-1.5">
+    <section className={['flex h-full min-h-0 flex-col overflow-hidden bg-das-panel', className ?? ''].join(' ')}>
+      <header className="flex shrink-0 items-center justify-between border-b border-das-border bg-das-panelAlt px-3 py-1.5">
         <div className="flex items-baseline gap-2">
-          <h2 className="text-[12px] font-semibold tracking-wide text-ds-text">{title}</h2>
-          {hint && <span className="text-[10px] text-ds-textDim">{hint}</span>}
+          <h2 className="text-[12px] font-semibold tracking-wide text-das-text">{title}</h2>
+          {hint && <span className="text-[10px] text-das-textDim">{hint}</span>}
         </div>
         {actions}
       </header>

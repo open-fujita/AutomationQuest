@@ -17,22 +17,22 @@ export default function Palette() {
   const addAction = useRobotStore((s) => s.addAction)
 
   return (
-    <div className="border-t border-ds-border">
-      <div className="border-b border-ds-border bg-ds-panelAlt px-3 py-1.5 text-[12px] font-semibold text-ds-text">
+    <div className="border-t border-das-border">
+      <div className="border-b border-das-border bg-das-panelAlt px-3 py-1.5 text-[12px] font-semibold text-das-text">
         パレット
       </div>
       <div className="space-y-1 p-2">
-        <div className="px-1 pb-1 text-[10px] text-ds-textDim">クリックで終了ステップの前に挿入</div>
+        <div className="px-1 pb-1 text-[10px] text-das-textDim">クリックで終了ステップの前に挿入</div>
         {PALETTE.map((p) => (
           <button
             key={p.type}
             onClick={() => addAction(p.type)}
-            className="flex w-full items-center gap-2 rounded border border-ds-border bg-ds-bg/40 px-2 py-1.5 text-left hover:border-ds-accent2 hover:bg-ds-accent2/10"
+            className="flex w-full items-center gap-2 rounded border border-das-border bg-das-bg px-2 py-1.5 text-left hover:border-das-accent2 hover:bg-das-accent2/10"
           >
             <span className="text-[14px]">{p.icon}</span>
             <span className="flex-1">
-              <span className="block text-[12px] text-ds-text">{ACTION_LABELS[p.type]}</span>
-              <span className="block text-[10px] text-ds-textDim">{p.note}</span>
+              <span className="block text-[12px] text-das-text">{ACTION_LABELS[p.type]}</span>
+              <span className="block text-[10px] text-das-textDim">{p.note}</span>
             </span>
           </button>
         ))}

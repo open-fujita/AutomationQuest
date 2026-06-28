@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html,
@@ -14,34 +14,68 @@ body,
 }
 
 body {
-  background: #1e2230;
-  color: #e6e9f2;
+  /* ライトテーマ: das-panelAlt (#f0f2f5) をベース背景に */
+  background: #f0f2f5;
+  color: #1f2937;
   font-family: 'Segoe UI', 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
   overflow: hidden;
 }
 
-/* React Flow をダーク DS テーマに馴染ませる */
+/* React Flow をライト DS テーマに馴染ませる（青ロボット編用） */
 .react-flow__attribution {
   display: none;
 }
 .react-flow__edge-path {
-  stroke: #6b75a0;
+  /* ライトテーマ: 白地に見える中濃グレー */
+  stroke: #6b7280;
   stroke-width: 1.5;
 }
 .react-flow__handle {
-  background: #4a90d9;
+  /* ライトテーマ: das-accent2 (#2563eb) */
+  background: #2563eb;
   border: none;
   width: 7px;
   height: 7px;
 }
 
-/* 細いスクロールバー */
+/* ---- DAS ライトテーマ: MyProjectsPane の ds-* 色を上書き ---- */
+/* DasWorkspaceLayout の左パネル (data-das-light="true") 内でのみ有効 */
+[data-das-light] {
+  /* テキスト色 */
+  --tw-text-opacity: 1;
+}
+/* Tailwind の bg-ds-panelAlt / text-ds-text 等を実際の上書きは className で対応済み */
+/* MyProjectsPane の border-ds-border/bg-ds-panelAlt 部分を上書き */
+[data-das-light] .border-ds-border,
+[data-das-light] .border-b.border-ds-border {
+  border-color: #d0d4dc !important;
+}
+[data-das-light] .bg-ds-panelAlt {
+  background-color: #f0f2f5 !important;
+}
+[data-das-light] .text-ds-text {
+  color: #1f2937 !important;
+}
+[data-das-light] .text-ds-textDim {
+  color: #4b5563 !important;
+}
+[data-das-light] .bg-ds-accent2\/15 {
+  background-color: rgb(37 99 235 / 0.12) !important;
+}
+
+/* ---- すごろくMAP（OfficeMapHome）アニメーション ---- */
+@keyframes qFloat { 0%,100%{ transform: translateY(0); } 50%{ transform: translateY(-7px); } }
+@keyframes qBob { 0%,100%{ transform: translateY(0) rotate(-1.5deg); } 50%{ transform: translateY(-3px) rotate(1.5deg); } }
+@keyframes qGlow { 0%,100%{ opacity:.4; } 50%{ opacity:1; } }
+@keyframes qFade { from{ opacity:0; } to{ opacity:1; } }
+
+/* 細いスクロールバー（ライトテーマ用） */
 *::-webkit-scrollbar {
   width: 9px;
   height: 9px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #3b425e;
+  background: #b0b7c3;
   border-radius: 5px;
 }
 *::-webkit-scrollbar-track {

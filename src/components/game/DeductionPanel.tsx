@@ -15,8 +15,8 @@ export default function DeductionPanel({ mission, onProceed }: Props) {
 
   return (
     <Modal title={`現場の観察 — 自動化のスジを読む（#${mission.index}）`}>
-      <p className="mb-4 text-[13px] text-ds-textDim">
-        いきなり作り始めない。まず手作業を観察し、「どこが繰り返しか」「何が変動するか」を<strong className="text-ds-text">見立て</strong>ます。これが自動化思考です。
+      <p className="mb-4 text-[13px]" style={{ color: '#6B6B6B' }}>
+        いきなり作り始めない。まず手作業を観察し、「どこが繰り返しか」「何が変動するか」を<strong style={{ color: '#1A1A1A' }}>見立て</strong>ます。これが自動化思考です。
       </p>
 
       <div className="space-y-4">
@@ -24,33 +24,38 @@ export default function DeductionPanel({ mission, onProceed }: Props) {
           const chosen = answers[q.id]
           const correct = chosen === q.correctIndex
           return (
-            <div key={q.id} className="rounded-lg border border-ds-border bg-ds-bg/40 p-3">
-              <div className="mb-2 text-[13px] font-semibold text-ds-text">
+            <div key={q.id} className="rounded-xl p-3" style={{ background: '#FAFAF8', border: '1px solid #ECEBE7' }}>
+              <div className="mb-2 text-[13px] font-semibold" style={{ color: '#1A1A1A' }}>
                 {qi + 1}. {q.question}
               </div>
               <div className="space-y-1.5">
                 {q.options.map((opt, oi) => {
                   const isChosen = chosen === oi
-                  const showState = isChosen
-                  const stateCls = !showState
-                    ? 'border-ds-border bg-ds-panel hover:border-ds-accent2'
+                  const stateStyle = !isChosen
+                    ? { background: '#fff', border: '1px solid #E6E5E1' }
                     : oi === q.correctIndex
-                      ? 'border-ds-ok bg-ds-ok/15'
-                      : 'border-ds-err bg-ds-err/15'
+                      ? { background: '#E9F6EF', border: '1px solid #2E9E6B' }
+                      : { background: '#FCE9EC', border: '1px solid #ED6A82' }
                   return (
                     <button
                       key={oi}
                       onClick={() => answer(q.id, oi)}
-                      className={['flex w-full items-center gap-2 rounded border px-3 py-1.5 text-left text-[13px] text-ds-text', stateCls].join(' ')}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]"
+                      style={{ color: '#3D3D3D', ...stateStyle }}
                     >
-                      <span className="text-ds-textDim">{isChosen ? (oi === q.correctIndex ? '✓' : '✕') : '○'}</span>
+                      <span style={{ color: isChosen ? (oi === q.correctIndex ? '#2E9E6B' : '#ED6A82') : '#B7B6B1', fontWeight: 700 }}>
+                        {isChosen ? (oi === q.correctIndex ? '✓' : '✕') : '○'}
+                      </span>
                       {opt}
                     </button>
                   )
                 })}
               </div>
               {chosen !== undefined && (
-                <div className={['mt-2 rounded p-2 text-[12px]', correct ? 'bg-ds-ok/10 text-ds-ok' : 'bg-ds-err/10 text-ds-err'].join(' ')}>
+                <div
+                  className="mt-2 rounded-lg p-2 text-[12px]"
+                  style={correct ? { background: '#E9F6EF', color: '#2E9E6B' } : { background: '#FCE9EC', color: '#ED6A82' }}
+                >
                   {correct ? `💡 ${q.insight}` : 'もう一度考えてみましょう。'}
                 </div>
               )}
@@ -60,14 +65,16 @@ export default function DeductionPanel({ mission, onProceed }: Props) {
       </div>
 
       <div className="mt-5 flex items-center justify-between">
-        <span className="text-[12px] text-ds-textDim">{allCorrect ? '見立てが揃いました。現場へ向かいましょう。' : 'すべて正解すると次に進めます。'}</span>
+        <span className="text-[12px]" style={{ color: '#9A9A9A' }}>{allCorrect ? '見立てが揃いました。現場へ向かいましょう。' : 'すべて正解すると次に進めます。'}</span>
         <button
           disabled={!allCorrect}
           onClick={onProceed}
-          className={[
-            'rounded-lg px-5 py-2 text-[14px] font-bold shadow',
-            allCorrect ? 'bg-ds-accent text-ds-bg hover:brightness-110' : 'cursor-not-allowed bg-ds-border text-ds-textDim',
-          ].join(' ')}
+          className="rounded-lg px-5 py-2.5 text-[14px] font-bold text-white"
+          style={
+            allCorrect
+              ? { background: 'linear-gradient(100deg,#F6A35A,#ED6A82)', boxShadow: '0 8px 20px rgba(237,106,130,.24)', cursor: 'pointer' }
+              : { background: '#D9D6D0', cursor: 'not-allowed' }
+          }
         >
           現場へ — ロボットを組む →
         </button>
