@@ -282,18 +282,26 @@ export default function PropertiesPane({ site }: { site: MockSite }) {
 
                   {a.type === 'TestValue' && (
                     <>
-                      <Row label="変数" required>
-                        <select className={fieldCls} value={a.toVariable} onChange={(e) => updateAction(step.id, { toVariable: e.target.value, toAttribute: '' })}>
-                          <option value="">（選択）</option>
-                          {robot.variables.map((v) => (<option key={v.name} value={v.name}>{v.name}</option>))}
-                        </select>
-                      </Row>
-                      <Row label="属性" required>
-                        <select className={fieldCls} value={a.toAttribute} onChange={(e) => updateAction(step.id, { toAttribute: e.target.value })} disabled={!selectedVar}>
-                          <option value="">（選択）</option>
-                          {attrOptions.map((at) => (<option key={at.name} value={at.name}>{at.name}</option>))}
-                        </select>
-                      </Row>
+                      {a.targetId ? (
+                        <Row label="テスト対象列">
+                          <span className={`${fieldCls} inline-block`}>{a.targetId.replace('col::', '')}</span>
+                        </Row>
+                      ) : (
+                        <>
+                          <Row label="変数" required>
+                            <select className={fieldCls} value={a.toVariable} onChange={(e) => updateAction(step.id, { toVariable: e.target.value, toAttribute: '' })}>
+                              <option value="">（選択）</option>
+                              {robot.variables.map((v) => (<option key={v.name} value={v.name}>{v.name}</option>))}
+                            </select>
+                          </Row>
+                          <Row label="属性" required>
+                            <select className={fieldCls} value={a.toAttribute} onChange={(e) => updateAction(step.id, { toAttribute: e.target.value })} disabled={!selectedVar}>
+                              <option value="">（選択）</option>
+                              {attrOptions.map((at) => (<option key={at.name} value={at.name}>{at.name}</option>))}
+                            </select>
+                          </Row>
+                        </>
+                      )}
                       <Row label="条件">
                         <div className="flex gap-1">
                           <select className={fieldCls} value={a.op} onChange={(e) => updateAction(step.id, { op: e.target.value as 'equals' | 'contains' | 'notEmpty' })}>

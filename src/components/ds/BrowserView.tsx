@@ -30,7 +30,7 @@ interface PathSegment {
 // ============================================================
 type MenuItem =
   | { kind: 'action'; label: string; action: () => void; disabled?: boolean }
-  | { kind: 'submenu'; label: string; children: MenuItem[] }
+  | { kind: 'submenu'; label: string; children: MenuItem[]; action?: () => void }
   | { kind: 'separator' }
 
 interface MenuState {
@@ -258,6 +258,7 @@ export default function BrowserView({ site, readOnly = false }: { site: MockSite
     {
       kind: 'submenu',
       label: 'テーブル行繰り返し',
+      action: doForEach,
       children: [
         {
           kind: 'action',
@@ -342,7 +343,7 @@ export default function BrowserView({ site, readOnly = false }: { site: MockSite
         { kind: 'action', label: 'ターゲット', action: () => {}, disabled: true },
       ],
     },
-    { kind: 'action', label: 'テスト', action: () => {}, disabled: true },
+    { kind: 'action', label: '値判定', action: () => { addAction('TestValue', { targetId }); setMenu(null) } },
     {
       kind: 'submenu',
       label: 'ループ',
@@ -358,6 +359,7 @@ export default function BrowserView({ site, readOnly = false }: { site: MockSite
         {
           kind: 'submenu',
           label: 'テーブル行繰り返し',
+          action: doForEach,
           children: [
             { kind: 'action', label: '最初の行を含める', action: () => { addAction('ForEach', { targetId: ROW_TARGET }); setMenu(null) } },
             { kind: 'action', label: '最初の行を除外', action: doForEach },
@@ -411,6 +413,7 @@ export default function BrowserView({ site, readOnly = false }: { site: MockSite
         {
           kind: 'submenu',
           label: 'テーブル行繰り返し',
+          action: doForEach,
           children: [
             { kind: 'action', label: '最初の行を含める', action: () => { addAction('ForEach', { targetId: ROW_TARGET }); setMenu(null) } },
             { kind: 'action', label: '最初の行を除外', action: doForEach },
@@ -501,14 +504,14 @@ export default function BrowserView({ site, readOnly = false }: { site: MockSite
         onMouseEnter={() => setSubOpen(true)}
         onMouseLeave={() => setSubOpen(false)}
       >
-        <div className="flex cursor-pointer items-center justify-between px-3 py-1.5 text-[12px] text-das-text hover:bg-das-accent2/30">
+        <div className="flex cursor-pointer items-center justify-between px-3 py-1.5 text-[12px] text-das-text hover:bg-das-accent2/30" onClick={() => { if (item.action) item.action(); else setSubOpen(true); }}>
           <span>{item.label}</span>
           <span className="ml-4 text-[10px] text-das-textDim">▶</span>
         </div>
         {subOpen && (
           <div
             className={[
-              'absolute top-0 z-[60] min-w-[200px] overflow-hidden rounded-md border border-das-border2 bg-das-panel shadow-xl',
+              'absolute top-0 z-[60] min-w-[200px] overflow-visible rounded-md border border-das-border2 bg-das-panel shadow-xl',
               depth % 2 === 0 ? 'left-full' : 'right-full',
             ].join(' ')}
             style={{ marginTop: -1 }}

@@ -213,7 +213,8 @@ export function requireRecordsFilled(minAttrs: number, min: number, label: strin
   }
 }
 
-/** 値判定（TestValue）ステップが存在し、条件値に value を含む（条件で仕分けたか） */
+/** 値判定（TestValue）ステップが存在し、条件値に value を含む（条件で仕分けたか）。
+ *  DOMセルガード（targetId あり・toAttribute 空）と従来形式（toAttribute あり）の両方を受理。 */
 export function requireTestValue(value: string, label: string, failHint: string): MissionCheck {
   return {
     id: `testvalue-${value}`,
@@ -224,7 +225,7 @@ export function requireTestValue(value: string, label: string, failHint: string)
         (s) =>
           s.enabled &&
           s.action?.type === 'TestValue' &&
-          s.action.toAttribute !== '' &&
+          (s.action.toAttribute !== '' || (s.action.targetId ?? '') !== '') &&
           (s.action.op === 'equals' || s.action.op === 'contains') &&
           s.action.value.includes(value),
       ),

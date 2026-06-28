@@ -7,6 +7,7 @@ import { M2 } from '../data/missions/m2'
 import { M3 } from '../data/missions/m3'
 import { M4 } from '../data/missions/m4'
 import { M5 } from '../data/missions/m5'
+import { M6 } from '../data/missions/m6'
 import { colTarget, ROW_TARGET } from '../model/site'
 
 /** 終了ステップの前にアクションステップを差し込むヘルパ */
@@ -115,8 +116,31 @@ describe('Mission 2 — 一覧をまるごと', () => {
   })
 })
 
-describe('Mission 3 — 条件で仕分ける', () => {
-  function buildBase(): Robot {
+describe('Mission 3 — 条件で仕分ける（DOM セルガード）', () => {
+  function buildGuard(): Robot {
+    const robot = createEmptyRobot('robot1')
+    robot.types.push({ name: '問い合わせ', kind: 'complex', attributes: [{ name: '件名' }, { name: '状態' }, { name: '担当' }] })
+    robot.variables.push({ name: '問い合わせ', typeName: '問い合わせ' })
+    addStep(robot, 'action', 'Load Page', { type: 'LoadPage', url: M3.site.url })
+    addStep(robot, 'loop', 'Loop', { type: 'ForEach', targetId: ROW_TARGET })
+    // ガード: 抽出より前に値判定（DOM セル）
+    addStep(robot, 'test', '値判定', { type: 'TestValue', targetId: colTarget('status'), toVariable: '', toAttribute: '', op: 'equals', value: '未対応' })
+    addStep(robot, 'action', '件名抽出', { type: 'ExtractText', targetId: colTarget('subject'), toVariable: '問い合わせ', toAttribute: '件名' })
+    addStep(robot, 'action', '状態抽出', { type: 'ExtractText', targetId: colTarget('status'), toVariable: '問い合わせ', toAttribute: '状態' })
+    addStep(robot, 'action', '担当抽出', { type: 'ExtractText', targetId: colTarget('assignee'), toVariable: '問い合わせ', toAttribute: '担当' })
+    return robot
+  }
+
+  it('DOM ガードで未対応だけ残すと 4 件になり合格する', () => {
+    const robot = buildGuard()
+    const sim = runRobot(robot, M3.site)
+    const v = validateMission({ robot, sim }, M3.checks)
+    expect(sim.data['問い合わせ']).toHaveLength(4)
+    expect(sim.data['問い合わせ'].every((r) => r['状態'] === '未対応')).toBe(true)
+    expect(v.pass).toBe(true)
+  })
+
+  it('値判定が無いと全 7 件のままで未達', () => {
     const robot = createEmptyRobot('robot1')
     robot.types.push({ name: '問い合わせ', kind: 'complex', attributes: [{ name: '件名' }, { name: '状態' }, { name: '担当' }] })
     robot.variables.push({ name: '問い合わせ', typeName: '問い合わせ' })
@@ -124,25 +148,44 @@ describe('Mission 3 — 条件で仕分ける', () => {
     addStep(robot, 'loop', 'Loop', { type: 'ForEach', targetId: ROW_TARGET })
     addStep(robot, 'action', '件名抽出', { type: 'ExtractText', targetId: colTarget('subject'), toVariable: '問い合わせ', toAttribute: '件名' })
     addStep(robot, 'action', '状態抽出', { type: 'ExtractText', targetId: colTarget('status'), toVariable: '問い合わせ', toAttribute: '状態' })
-    addStep(robot, 'action', '担当抽出', { type: 'ExtractText', targetId: colTarget('assignee'), toVariable: '問い合わせ', toAttribute: '担当' })
-    return robot
-  }
-
-  it('値判定で未対応だけ残すと 4 件になり合格する', () => {
-    const robot = buildBase()
-    addStep(robot, 'test', '値判定', { type: 'TestValue', toVariable: '問い合わせ', toAttribute: '状態', op: 'equals', value: '未対応' })
     const sim = runRobot(robot, M3.site)
-    const v = validateMission({ robot, sim }, M3.checks)
-    expect(sim.data['問い合わせ']).toHaveLength(4)
-    expect(v.pass).toBe(true)
+    expect(sim.data['問い合わせ']).toHaveLength(7)
   })
 
-  it('値判定が無いと全 7 件のままで未達（4 件に絞れていない）', () => {
-    const robot = buildBase()
+  it('後方互換: targetId 無しの TestValue は従来のコレクションフィルタとして動作する', () => {
+    const robot = createEmptyRobot('robot1')
+    robot.types.push({ name: '問い合わせ', kind: 'complex', attributes: [{ name: '件名' }, { name: '状態' }] })
+    robot.variables.push({ name: '問い合わせ', typeName: '問い合わせ' })
+    addStep(robot, 'action', 'Load Page', { type: 'LoadPage', url: M3.site.url })
+    addStep(robot, 'loop', 'Loop', { type: 'ForEach', targetId: ROW_TARGET })
+    addStep(robot, 'action', '件名抽出', { type: 'ExtractText', targetId: colTarget('subject'), toVariable: '問い合わせ', toAttribute: '件名' })
+    addStep(robot, 'action', '状態抽出', { type: 'ExtractText', targetId: colTarget('status'), toVariable: '問い合わせ', toAttribute: '状態' })
+    // targetId 無し = 従来フィルタ（ループ本体に含まれず post-loop で実行）
+    addStep(robot, 'test', '値判定', { type: 'TestValue', toVariable: '問い合わせ', toAttribute: '状態', op: 'equals', value: '未対応' })
     const sim = runRobot(robot, M3.site)
-    const v = validateMission({ robot, sim }, M3.checks)
-    expect(sim.data['問い合わせ']).toHaveLength(7)
-    expect(v.pass).toBe(false)
+    expect(sim.data['問い合わせ']).toHaveLength(4)
+    expect(sim.data['問い合わせ'].every((r) => r['状態'] === '未対応')).toBe(true)
+  })
+})
+
+describe('Mission 6 — 二段ガード（二段で絞り込む）', () => {
+  it('二段 DOM ガードで未承認かつ高額の 3 件に絞り込める', () => {
+    const robot = createEmptyRobot('robot1')
+    robot.types.push({ name: '経費申請', kind: 'complex', attributes: [{ name: '件名' }, { name: '承認状態' }, { name: '金額区分' }] })
+    robot.variables.push({ name: '経費申請', typeName: '経費申請' })
+    addStep(robot, 'action', 'Load Page', { type: 'LoadPage', url: M6.site.url })
+    addStep(robot, 'loop', 'Loop', { type: 'ForEach', targetId: ROW_TARGET })
+    // 二段ガード: 抽出より前
+    addStep(robot, 'test', '値判定1', { type: 'TestValue', targetId: colTarget('status'), toVariable: '', toAttribute: '', op: 'equals', value: '未承認' })
+    addStep(robot, 'test', '値判定2', { type: 'TestValue', targetId: colTarget('rank'), toVariable: '', toAttribute: '', op: 'equals', value: '高額' })
+    addStep(robot, 'action', '件名抽出', { type: 'ExtractText', targetId: colTarget('subject'), toVariable: '経費申請', toAttribute: '件名' })
+    addStep(robot, 'action', '承認状態抽出', { type: 'ExtractText', targetId: colTarget('status'), toVariable: '経費申請', toAttribute: '承認状態' })
+    addStep(robot, 'action', '金額区分抽出', { type: 'ExtractText', targetId: colTarget('rank'), toVariable: '経費申請', toAttribute: '金額区分' })
+    const sim = runRobot(robot, M6.site)
+    expect(sim.data['経費申請']).toHaveLength(3)
+    expect(sim.data['経費申請'].every((r) => r['承認状態'] === '未承認' && r['金額区分'] === '高額')).toBe(true)
+    const v = validateMission({ robot, sim }, M6.checks)
+    expect(v.pass).toBe(true)
   })
 })
 

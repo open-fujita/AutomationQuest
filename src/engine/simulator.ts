@@ -32,6 +32,13 @@ function seedInputs(robot: Robot, data: Record<string, SimRecord[]>, inputs?: Si
   }
 }
 
+/** 条件評価ユーティリティ（runLinear / runGraph 共用） */
+function evalTest(cellValue: string, op: string, value: string): boolean {
+  if (op === 'equals') return cellValue === value
+  if (op === 'contains') return cellValue.includes(value)
+  return cellValue.trim() !== '' // notEmpty
+}
+
 function runLinear(robot: Robot, site: MockSite, inputs?: SimInputs): SimResult {
   const log: SimLogEntry[] = []
   const errors: string[] = []
@@ -40,7 +47,6 @@ function runLinear(robot: Robot, site: MockSite, inputs?: SimInputs): SimResult 
   seedInputs(robot, data, inputs)
 
   let loaded = false
-  let loopActive = false
 
   const ensureVar = (name: string): boolean => {
     if (!robot.variables.some((v) => v.name === name)) return false
@@ -54,19 +60,9 @@ function runLinear(robot: Robot, site: MockSite, inputs?: SimInputs): SimResult 
     data[varName][idx][attr] = value
   }
 
-  for (const step of robot.steps) {
-    if (step.kind === 'start' || step.kind === 'end') continue
-    if (!step.enabled) {
-      log.push({ stepId: step.id, stepName: step.name, status: 'skip', message: '無効化されたステップをスキップ' })
-      continue
-    }
-    const action = step.action
-    if (!action) {
-      log.push({ stepId: step.id, stepName: step.name, status: 'error', message: 'アクションが設定されていません' })
-      errors.push(`「${step.name}」にアクションが設定されていません`)
-      continue
-    }
-
+  // ---- 1 ステップを実行（ループ外用） ----
+  const execOutside = (step: RobotStep): void => {
+    const action = step.action!
     switch (action.type) {
       case 'LoadPage': {
         if (action.url && action.url === site.url) {
@@ -81,28 +77,6 @@ function runLinear(robot: Robot, site: MockSite, inputs?: SimInputs): SimResult 
         }
         break
       }
-
-      case 'ForEach': {
-        if (!loaded) {
-          log.push({ stepId: step.id, stepName: step.name, status: 'error', message: '先にページを読み込んでください' })
-          errors.push('「要素の繰り返し」の前にページを読み込んでください')
-          break
-        }
-        if (!site.table) {
-          log.push({ stepId: step.id, stepName: step.name, status: 'error', message: '繰り返せる一覧がありません' })
-          errors.push('このページに繰り返せる一覧（テーブル）がありません')
-          break
-        }
-        loopActive = true
-        log.push({
-          stepId: step.id,
-          stepName: step.name,
-          status: 'ok',
-          message: `要素の繰り返しを開始（${site.table.rows.length} 件の行を反復）`,
-        })
-        break
-      }
-
       case 'ExtractText':
       case 'ExtractURL': {
         if (!loaded) {
@@ -117,25 +91,17 @@ function runLinear(robot: Robot, site: MockSite, inputs?: SimInputs): SimResult 
         }
         const colKey = parseColTarget(action.targetId)
         if (colKey !== null) {
-          // テーブル列の抽出
           if (!site.table) {
             log.push({ stepId: step.id, stepName: step.name, status: 'error', message: '一覧がありません' })
             errors.push('テーブルが無いため列を抽出できません')
             break
           }
-          const allRows = site.table.rows
-          const rowsToRead = loopActive ? allRows : allRows.slice(0, 1)
-          rowsToRead.forEach((row, idx) => {
-            writeCell(action.toVariable, idx, action.toAttribute, row.cells[colKey] ?? '')
-          })
-          log.push({
-            stepId: step.id,
-            stepName: step.name,
-            status: 'ok',
-            message: `抽出: ${action.toVariable}.${action.toAttribute} ← ${rowsToRead.length} 件${loopActive ? '' : '（ループ外のため先頭 1 件のみ）'}`,
-          })
+          // ループ外: 先頭 1 件のみ
+          const row = site.table.rows[0]
+          if (row) writeCell(action.toVariable, 0, action.toAttribute, row.cells[colKey] ?? '')
+          log.push({ stepId: step.id, stepName: step.name, status: 'ok',
+            message: `抽出: ${action.toVariable}.${action.toAttribute} ← 1 件（ループ外のため先頭 1 件のみ）` })
         } else {
-          // 単一要素の抽出
           const el = site.singles.find((s) => s.id === action.targetId)
           if (!el) {
             log.push({ stepId: step.id, stepName: step.name, status: 'error', message: '抽出対象の要素が見つかりません' })
@@ -143,40 +109,24 @@ function runLinear(robot: Robot, site: MockSite, inputs?: SimInputs): SimResult 
             break
           }
           writeCell(action.toVariable, 0, action.toAttribute, el.text)
-          log.push({
-            stepId: step.id,
-            stepName: step.name,
-            status: 'ok',
-            message: `抽出: ${action.toVariable}.${action.toAttribute} ← "${el.text}"`,
-          })
+          log.push({ stepId: step.id, stepName: step.name, status: 'ok',
+            message: `抽出: ${action.toVariable}.${action.toAttribute} ← "${el.text}"` })
         }
         break
       }
-
       case 'TestValue': {
-        // 値判定（M4 で本格使用）。スライスでは変数レコードを条件で絞り込む。
+        // ループ外: 従来のコレクション一括フィルタ（後方互換）
         const records = data[action.toVariable] ?? []
-        const keep = records.filter((r) => {
-          const v = r[action.toAttribute] ?? ''
-          if (action.op === 'equals') return v === action.value
-          if (action.op === 'contains') return v.includes(action.value)
-          return v.trim() !== ''
-        })
+        const keep = records.filter((r) => evalTest(r[action.toAttribute] ?? '', action.op, action.value))
         data[action.toVariable] = keep
-        log.push({
-          stepId: step.id,
-          stepName: step.name,
-          status: 'ok',
-          message: `値判定: ${keep.length} 件が条件を満たしました`,
-        })
+        log.push({ stepId: step.id, stepName: step.name, status: 'ok',
+          message: `値判定: ${keep.length} 件が条件を満たしました` })
         break
       }
-
       case 'SaveFile': {
         log.push({ stepId: step.id, stepName: step.name, status: 'ok', message: `${action.fileName} に保存しました` })
         break
       }
-
       case 'ReturnValue': {
         if (!robot.variables.some((v) => v.name === action.variableName)) {
           log.push({ stepId: step.id, stepName: step.name, status: 'error', message: `返す変数「${action.variableName}」が見つかりません` })
@@ -187,7 +137,6 @@ function runLinear(robot: Robot, site: MockSite, inputs?: SimInputs): SimResult 
         log.push({ stepId: step.id, stepName: step.name, status: 'ok', message: `出力変数「${action.variableName}」を呼び出し元へ返しました` })
         break
       }
-
       case 'EnterText': {
         if (!loaded) {
           log.push({ stepId: step.id, stepName: step.name, status: 'error', message: '先にページを読み込んでください' })
@@ -201,7 +150,6 @@ function runLinear(robot: Robot, site: MockSite, inputs?: SimInputs): SimResult 
         log.push({ stepId: step.id, stepName: step.name, status: 'ok', message: `「${text}」を入力${src}` })
         break
       }
-
       case 'Click': {
         if (!loaded) {
           log.push({ stepId: step.id, stepName: step.name, status: 'error', message: '先にページを読み込んでください' })
@@ -212,6 +160,106 @@ function runLinear(robot: Robot, site: MockSite, inputs?: SimInputs): SimResult 
         break
       }
     }
+  }
+
+  // ---- メインループ: ForEach を per-row で実行 ----
+  const allSteps = robot.steps
+  let idx = 0
+  while (idx < allSteps.length) {
+    const step = allSteps[idx]
+    if (step.kind === 'start' || step.kind === 'end') { idx++; continue }
+    if (!step.enabled) {
+      log.push({ stepId: step.id, stepName: step.name, status: 'skip', message: '無効化されたステップをスキップ' })
+      idx++; continue
+    }
+    if (!step.action) {
+      log.push({ stepId: step.id, stepName: step.name, status: 'error', message: 'アクションが設定されていません' })
+      errors.push(`「${step.name}」にアクションが設定されていません`)
+      idx++; continue
+    }
+
+    if (step.action.type === 'ForEach') {
+      // ---- ForEach: per-row 実行 ----
+      if (!loaded) {
+        log.push({ stepId: step.id, stepName: step.name, status: 'error', message: '先にページを読み込んでください' })
+        errors.push('「要素の繰り返し」の前にページを読み込んでください')
+        idx++; continue
+      }
+      if (!site.table) {
+        log.push({ stepId: step.id, stepName: step.name, status: 'error', message: '繰り返せる一覧がありません' })
+        errors.push('このページに繰り返せる一覧（テーブル）がありません')
+        idx++; continue
+      }
+      const rows = site.table.rows
+      log.push({ stepId: step.id, stepName: step.name, status: 'ok',
+        message: `要素の繰り返しを開始（${rows.length} 件の行を反復）` })
+
+      // ループ本体を収集: ForEach 直後の連続する Extract/TestValue(+targetId) ステップ
+      const bodySteps: RobotStep[] = []
+      let scan = idx + 1
+      while (scan < allSteps.length) {
+        const s = allSteps[scan]
+        if (s.kind === 'start' || s.kind === 'end' || !s.enabled || !s.action) { scan++; continue }
+        const t = s.action.type
+        if (t === 'ExtractText' || t === 'ExtractURL' || (t === 'TestValue' && s.action.targetId)) {
+          bodySteps.push(s)
+          scan++
+        } else {
+          break
+        }
+      }
+
+      // 各行を実行
+      let writeIdx = 0
+      for (let ri = 0; ri < rows.length; ri++) {
+        let skipRow = false
+        for (const bs of bodySteps) {
+          if (skipRow) break
+          const ba = bs.action!
+          if (ba.type === 'ExtractText' || ba.type === 'ExtractURL') {
+            if (!ensureVar(ba.toVariable)) {
+              log.push({ stepId: bs.id, stepName: bs.name, status: 'error', message: `変数「${ba.toVariable}」が見つかりません` })
+              errors.push(`抽出先の変数「${ba.toVariable}」が見つかりません`)
+              continue
+            }
+            const ck = parseColTarget(ba.targetId)
+            if (ck !== null) {
+              writeCell(ba.toVariable, writeIdx, ba.toAttribute, rows[ri].cells[ck] ?? '')
+              log.push({ stepId: bs.id, stepName: bs.name, status: 'ok',
+                message: `抽出: ${ba.toVariable}.${ba.toAttribute}（${ri + 1} 行目）` })
+            } else {
+              // 単一要素（ループ内でも 1 回だけ書く）
+              const el = site.singles.find((s) => s.id === ba.targetId)
+              if (el) writeCell(ba.toVariable, 0, ba.toAttribute, el.text)
+              log.push({ stepId: bs.id, stepName: bs.name, status: 'ok',
+                message: `抽出: ${ba.toVariable}.${ba.toAttribute}` })
+            }
+          } else if (ba.type === 'TestValue' && ba.targetId) {
+            // DOM セルガード
+            const ck = parseColTarget(ba.targetId)
+            if (ck !== null) {
+              const cellVal = rows[ri].cells[ck] ?? ''
+              if (!evalTest(cellVal, ba.op, ba.value)) {
+                skipRow = true
+                log.push({ stepId: bs.id, stepName: bs.name, status: 'ok',
+                  message: `値判定: 行 ${ri + 1} — 条件不一致、スキップ` })
+              } else {
+                log.push({ stepId: bs.id, stepName: bs.name, status: 'ok',
+                  message: `値判定: 行 ${ri + 1} — 条件一致` })
+              }
+            }
+          }
+        }
+        if (!skipRow) writeIdx++
+      }
+
+      idx = scan // ループ本体をスキップして post-loop へ
+      continue
+    }
+
+    // ---- ループ外ステップ ----
+    execOutside(step)
+    idx++
   }
 
   return { ran: true, data, log, errors, returned }
@@ -255,9 +303,10 @@ function runGraph(robot: Robot, site: MockSite, inputs?: SimInputs): SimResult {
   }
 
   // 1 ノードを実行（アクション系のみ。制御系は run() で処理）
-  const exec = (step: RobotStep): void => {
+  // 戻り値 false = ガード不一致で反復中断
+  const exec = (step: RobotStep): boolean => {
     const a = step.action
-    if (!a) return
+    if (!a) return true
     const currentRow = rowStack.length > 0 ? rowStack[rowStack.length - 1] : null
     switch (a.type) {
       case 'LoadPage':
@@ -293,14 +342,26 @@ function runGraph(robot: Robot, site: MockSite, inputs?: SimInputs): SimResult {
         break
       }
       case 'TestValue': {
-        const recs = data[a.toVariable] ?? []
-        data[a.toVariable] = recs.filter((r) => {
-          const v = r[a.toAttribute] ?? ''
-          if (a.op === 'equals') return v === a.value
-          if (a.op === 'contains') return v.includes(a.value)
-          return v.trim() !== ''
-        })
-        log.push({ stepId: step.id, stepName: step.name, status: 'ok', message: `値判定: ${data[a.toVariable].length} 件が条件を満たしました` })
+        if (a.targetId && currentRow !== null) {
+          // DOM セルガード（ループ内 + targetId あり）
+          const ck = parseColTarget(a.targetId)
+          if (ck !== null && site.table) {
+            const cellVal = site.table.rows[currentRow]?.cells[ck] ?? ''
+            if (!evalTest(cellVal, a.op, a.value)) {
+              log.push({ stepId: step.id, stepName: step.name, status: 'ok',
+                message: `値判定: 行 ${currentRow + 1} — 条件不一致、スキップ` })
+              return false // ガード不一致 → 反復中断
+            }
+            log.push({ stepId: step.id, stepName: step.name, status: 'ok',
+              message: `値判定: 行 ${currentRow + 1} — 条件一致` })
+          }
+        } else {
+          // 従来のコレクション一括フィルタ（後方互換）
+          const recs = data[a.toVariable] ?? []
+          data[a.toVariable] = recs.filter((r) => evalTest(r[a.toAttribute] ?? '', a.op, a.value))
+          log.push({ stepId: step.id, stepName: step.name, status: 'ok',
+            message: `値判定: ${data[a.toVariable].length} 件が条件を満たしました` })
+        }
         break
       }
       case 'SaveFile':
@@ -325,6 +386,7 @@ function runGraph(robot: Robot, site: MockSite, inputs?: SimInputs): SimResult {
         log.push({ stepId: step.id, stepName: step.name, status: 'ok', message: `${step.name} を実行` })
         break
     }
+    return true
   }
 
   const next = (id: string): string | undefined => outEdges.get(id)?.[0]
@@ -359,7 +421,9 @@ function runGraph(robot: Robot, site: MockSite, inputs?: SimInputs): SimResult {
         return
       }
       // start / action / test
-      if (node.kind !== 'start') exec(node)
+      if (node.kind !== 'start') {
+        if (!exec(node)) return // ガード不一致 → この反復を中断
+      }
       id = next(node.id)
     }
   }

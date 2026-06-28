@@ -33,7 +33,7 @@ function makeDefaultAction(type: StepActionType): StepAction {
     case 'EnterText':
       return { type: 'EnterText', targetId: '', text: '' }
     case 'TestValue':
-      return { type: 'TestValue', toVariable: '', toAttribute: '', op: 'notEmpty', value: '' }
+      return { type: 'TestValue', targetId: '', toVariable: '', toAttribute: '', op: 'notEmpty', value: '' }
     case 'SaveFile':
       return { type: 'SaveFile', fileName: '結果.xlsx' }
     case 'ReturnValue':

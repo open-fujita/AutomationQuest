@@ -27,7 +27,7 @@ export type StepAction =
   | { type: 'Click'; targetId: string } // クリック
   | { type: 'EnterText'; targetId: string; text: string; fromVariable?: string; fromAttribute?: string } // テキストを入力（固定文字 or 変数から）
   | { type: 'ForEach'; targetId: string } // 要素の繰り返し（ForEachTag）
-  | { type: 'TestValue'; toVariable: string; toAttribute: string; op: 'equals' | 'contains' | 'notEmpty'; value: string } // 値判定（TestTag）
+  | { type: 'TestValue'; targetId?: string; toVariable: string; toAttribute: string; op: 'equals' | 'contains' | 'notEmpty'; value: string } // 値判定（TestTag）— targetId あり=DOMセルガード、なし=従来コレクションフィルタ
   | { type: 'SaveFile'; fileName: string } // 仕上げ：ファイルに保存（WriteFile）
   | { type: 'ReturnValue'; variableName: string } // 値を返す（出力変数を呼び出し元へ・ReturnVariable）
   /**
