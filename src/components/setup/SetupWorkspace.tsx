@@ -1116,7 +1116,7 @@ export default function SetupWorkspace({ mission }: SetupWorkspaceProps) {
 
       {/* フェーズ別モーダル（MissionBriefing / DeductionPanel / result） */}
       {phase === 'briefing' && (
-        <MissionBriefing mission={mission} onAccept={() => setPhase('deduction')} />
+        <MissionBriefing mission={mission} onAccept={() => setPhase('deduction')} onRest={goHome} />
       )}
       {phase === 'deduction' && (
         <DeductionPanel mission={mission} onProceed={() => setPhase('build')} />

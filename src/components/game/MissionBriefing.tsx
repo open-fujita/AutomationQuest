@@ -5,9 +5,10 @@ import ClientPortrait from './ClientPortrait'
 interface Props {
   mission: Mission
   onAccept: () => void
+  onRest: () => void
 }
 
-export default function MissionBriefing({ mission, onAccept }: Props) {
+export default function MissionBriefing({ mission, onAccept, onRest }: Props) {
   return (
     <Modal title={`相談票 #${mission.index} — ${mission.title}`}>
       <div className="flex gap-4">
@@ -30,7 +31,14 @@ export default function MissionBriefing({ mission, onAccept }: Props) {
         </div>
       </div>
 
-      <div className="mt-5 flex justify-end">
+      <div className="mt-5 flex justify-between">
+        <button
+          onClick={onRest}
+          className="rounded-lg px-5 py-2.5 text-[14px] font-bold"
+          style={{ background: '#fff', border: '1px solid #E5D9C8', color: '#8a7a5a' }}
+        >
+          ← 休憩する
+        </button>
         <button
           onClick={onAccept}
           className="rounded-lg px-5 py-2.5 text-[14px] font-bold text-white"

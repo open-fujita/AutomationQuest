@@ -219,7 +219,7 @@ export default function DasWorkspaceLayout({ mission }: DasWorkspaceLayoutProps)
       </main>
 
       {/* フェーズ別モーダル */}
-      {phase === 'briefing' && <MissionBriefing mission={mission} onAccept={() => setPhase('deduction')} />}
+      {phase === 'briefing' && <MissionBriefing mission={mission} onAccept={() => setPhase('deduction')} onRest={goHome} />}
       {phase === 'deduction' && <DeductionPanel mission={mission} onProceed={() => setPhase('build')} />}
       {phase === 'result' && (
         <ResultPanel

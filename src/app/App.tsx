@@ -194,7 +194,7 @@ export default function App() {
       </div>
 
       {/* フェーズ別モーダル */}
-      {phase === 'briefing' && <MissionBriefing mission={mission} onAccept={() => setPhase('deduction')} />}
+      {phase === 'briefing' && <MissionBriefing mission={mission} onAccept={() => setPhase('deduction')} onRest={goHome} />}
       {phase === 'deduction' && <DeductionPanel mission={mission} onProceed={() => setPhase('build')} />}
       {phase === 'result' && <ResultPanel mission={mission} sim={sim} hasNext={hasNext} onNext={onNext} healthFindings={healthFindings} />}
 
