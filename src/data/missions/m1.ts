@@ -32,7 +32,7 @@ export const M1: Mission = {
   id: 'm1',
   index: 1,
   title: 'はじめての自動化',
-  client: { name: '神崎 経理部主任', dept: '経理部', portrait: '/img/portrait-keiri.png' },
+  client: { name: '及川 広報部', dept: '広報部' },
   briefing:
     '毎朝、社内ポータルのお知らせ見出しを手でコピーして全社メールに貼ってるんです…。たった1行なのに、確認して開いてコピーして、で毎回15分。これ、ロボットに任せられませんか？',
   manualMinutes: 15,
